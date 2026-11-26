@@ -83,6 +83,24 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
 .sd-actions .btn{padding:7px 16px;border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink-2);cursor:pointer;font-size:13px}
 .clickable{cursor:pointer}
 .clickable:hover td{background:var(--paper-3)}
+#rank-list{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{min-width:620px}
+@media (max-width:640px){
+  .wrap{padding:20px 12px 70px}
+  .head{flex-direction:column;align-items:flex-start;gap:10px}
+  .head-actions{width:100%;justify-content:space-between;flex-wrap:wrap}
+  .stat-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .stat{padding:12px 13px}
+  .stat b{font-size:21px}
+  .panel{padding:14px 12px}
+  .toolbar{gap:6px}
+  .toolbar .chip{padding:4px 10px;font-size:11.5px}
+  table{min-width:560px;font-size:12.5px}
+  th,td{padding:8px 6px}
+  .modal-card{width:calc(100% - 20px);padding:18px 14px}
+  .manage-bar{gap:6px}
+  .manage-bar .btn{padding:5px 10px;font-size:11.5px}
+}
 
 </style>
 </head>
@@ -217,7 +235,15 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
   }
 
   async function loadScores(){
-    // 读取成绩仓库 scores 目录下所有 json 文件（公开仓库，无需 token）
+    // 优先 GitHub API（实时、带 sha），失败回退 jsDelivr CDN（国内可达）
+    try{
+      return await loadFromGithub();
+    }catch(e){
+      return await loadFromJsdelivr();
+    }
+  }
+
+  async function loadFromGithub(){
     const dirUrl = "https://api.github.com/repos/" + SCORES_OWNER + "/" + SCORES_REPO + "/contents/scores?t=" + Date.now();
     const dirResp = await fetch(dirUrl, {cache:"no-store", headers:{"Accept":"application/vnd.github+json"}});
     if(!dirResp.ok) throw new Error("dir " + dirResp.status);
@@ -236,6 +262,30 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
         obj._sha = f.sha;
         items.push(obj);
       }catch(e){ /* 单个文件失败跳过 */ }
+    }
+    return items;
+  }
+
+  async function loadFromJsdelivr(){
+    const listUrl = "https://data.jsdelivr.com/v1/packages/gh/" + SCORES_OWNER + "/" + SCORES_REPO + "@main/scores";
+    const resp = await fetch(listUrl, {cache:"no-store"});
+    if(!resp.ok) throw new Error("jsdelivr " + resp.status);
+    const list = await resp.json();
+    const names = (Array.isArray(list.files) ? list.files : [])
+      .map(f => f.name)
+      .filter(n => /\.json$/i.test(n));
+    const items = [];
+    for(const n of names){
+      try{
+        const url = "https://cdn.jsdelivr.net/gh/" + SCORES_OWNER + "/" + SCORES_REPO + "@main/scores/" + encodeURIComponent(n);
+        const r = await fetch(url, {cache:"no-store"});
+        if(r.ok){
+          const obj = JSON.parse(await r.text());
+          obj._file = n;
+          obj._sha = null;
+          items.push(obj);
+        }
+      }catch(e){}
     }
     return items;
   }
@@ -398,9 +448,9 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
   });
   $("#btn-refresh").addEventListener("click", refresh);
 
-  // 明细弹窗关闭
-  document.querySelectorAll("[data-close-modal]").forEach(el => {
-    el.addEventListener("click", () => $("#modal").classList.remove("show"));
+  // 明细弹窗关闭（事件委托，兼容动态生成的按钮）
+  $("#modal").addEventListener("click", e => {
+    if(e.target.closest("[data-close-modal]")) $("#modal").classList.remove("show");
   });
   document.addEventListener("keydown", e => {
     if(e.key === "Escape") $("#modal").classList.remove("show");

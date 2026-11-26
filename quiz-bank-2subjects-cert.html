@@ -38,6 +38,20 @@
 .sb-badge.bad{background:var(--red-soft);color:var(--red)}
 .sb-manage-hint{margin:0 0 16px;padding:10px 14px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;font-size:12.5px;color:var(--accent-2)}
 .sb-manage-hint a{color:var(--accent);font-weight:600}
+#sb-list{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.sb-table{min-width:620px}
+@media (max-width:640px){
+  .sb-main{padding:20px 12px 70px}
+  .sb-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .sb-stat{padding:12px 13px}
+  .sb-stat b{font-size:21px}
+  .sb-panel{padding:14px 12px}
+  .sb-toolbar{gap:6px}
+  .sb-toolbar .chip{padding:4px 10px;font-size:11.5px}
+  .sb-table{min-width:560px;font-size:12.5px}
+  .sb-table th,.sb-table td{padding:8px 6px}
+  .score-detail{min-width:min(92vw,560px)}
+}
 /* 答题明细 */
 .score-detail{min-width:min(560px,86vw);max-height:72vh;overflow:auto}
 .sd-group{margin:10px 0}
@@ -1111,11 +1125,10 @@ input, textarea{
       <div class="qbar-in">
         <button class="icon-btn" id="btn-sb-back" aria-label="返回首页" type="button">←</button>
         <div class="qbar-titles"><b>成绩榜单</b><span id="sb-sub">所有人提交的成绩 · 只读</span></div>
-        <div class="qbar-right"><a class="btn tiny" href="scores.html" target="_blank" rel="noopener">管理页打开 →</a></div>
+        <div class="qbar-right"></div>
       </div>
     </header>
     <main class="sb-main">
-      <p class="sb-manage-hint">本页只读。要删除或管理成绩，请到 <a href="scores.html" target="_blank" rel="noopener">成绩榜单管理页 →</a></p>
       <div class="sb-grid" id="sb-grid"></div>
       <div class="sb-panel">
         <h2>排行榜</h2>
@@ -3456,23 +3469,43 @@ input, textarea{
     return d.getFullYear() + "/" + p(d.getMonth()+1) + "/" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
   }
   async function loadScoreboard(){
-    const dirUrl = "https://api.github.com/repos/ASD662112/dsh-quiz-scores/contents/scores?t=" + Date.now();
-    const r = await fetch(dirUrl, {cache:"no-store", headers:{"Accept":"application/vnd.github+json"}});
-    if(!r.ok) throw new Error(r.status);
-    const dir = await r.json();
-    const files = (Array.isArray(dir) ? dir : [])
-      .filter(f => f.type === "file" && /\.json$/i.test(f.name))
-      .map(f => f.download_url)
-      .filter(Boolean);
-    const items = [];
-    for(const url of files){
-      try{
-        const sep = url.indexOf("?") === -1 ? "?" : "&";
-        const rr = await fetch(url + sep + "t=" + Date.now(), {cache:"no-store"});
-        if(rr.ok) items.push(JSON.parse(await rr.text()));
-      }catch(e){}
+    // 优先 GitHub API，失败回退 jsDelivr CDN
+    try{
+      const dirUrl = "https://api.github.com/repos/ASD662112/dsh-quiz-scores/contents/scores?t=" + Date.now();
+      const r = await fetch(dirUrl, {cache:"no-store", headers:{"Accept":"application/vnd.github+json"}});
+      if(!r.ok) throw new Error(r.status);
+      const dir = await r.json();
+      const files = (Array.isArray(dir) ? dir : [])
+        .filter(f => f.type === "file" && /\.json$/i.test(f.name))
+        .map(f => f.download_url)
+        .filter(Boolean);
+      const items = [];
+      for(const url of files){
+        try{
+          const sep = url.indexOf("?") === -1 ? "?" : "&";
+          const rr = await fetch(url + sep + "t=" + Date.now(), {cache:"no-store"});
+          if(rr.ok) items.push(JSON.parse(await rr.text()));
+        }catch(e){}
+      }
+      return items;
+    }catch(e){
+      const listUrl = "https://data.jsdelivr.com/v1/packages/gh/ASD662112/dsh-quiz-scores@main/scores";
+      const resp = await fetch(listUrl, {cache:"no-store"});
+      if(!resp.ok) throw new Error("jsdelivr " + resp.status);
+      const list = await resp.json();
+      const names = (Array.isArray(list.files) ? list.files : [])
+        .map(f => f.name)
+        .filter(n => /\.json$/i.test(n));
+      const items = [];
+      for(const n of names){
+        try{
+          const url = "https://cdn.jsdelivr.net/gh/ASD662112/dsh-quiz-scores@main/scores/" + encodeURIComponent(n);
+          const rr = await fetch(url, {cache:"no-store"});
+          if(rr.ok) items.push(JSON.parse(await rr.text()));
+        }catch(err){}
+      }
+      return items;
     }
-    return items;
   }
   function sbDur(s){
     if(s == null || s === "") return "–";
