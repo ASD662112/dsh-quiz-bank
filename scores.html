@@ -99,6 +99,11 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
 .sd-actions .btn{padding:7px 16px;border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink-2);cursor:pointer;font-size:13px}
 .clickable{cursor:pointer}
 .clickable:hover td{background:var(--paper-3)}
+.exp-preview img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.exp-preview .sd-actions{margin-top:14px}
+.exp-preview .btn{padding:7px 18px;border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink-2);cursor:pointer;font-size:13px}
+.exp-preview .exp-dl{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.exp-preview h3{font-size:19px}
 #rank-list{overflow-x:auto;-webkit-overflow-scrolling:touch}
 table{min-width:620px}
 @media (max-width:640px){
@@ -927,17 +932,29 @@ input,textarea,select,[contenteditable="true"],.allow-select,
     ctx.font = expFont(12);
     ctx.fillText("数据来源：github.com/ASD662112/dsh-quiz-scores · asd662112.github.io/dsh-quiz-bank/scores.html", W/2, y + 20);
 
-    // 下载
-    cv.toBlob(blob => {
-      if(!blob){ toast("导出失败，请重试"); return; }
-      const url = URL.createObjectURL(blob);
+    // 预览 + 下载
+    const dataUrl = cv.toDataURL("image/png");
+    const fileName = "成绩榜单_" + now.getFullYear() + P2(now.getMonth()+1) + P2(now.getDate()) + "_" + P2(now.getHours()) + P2(now.getMinutes()) + ".png";
+    const card = $("#modal-card");
+    card.classList.add("wide");
+    card.innerHTML =
+      '<div class="exp-preview">' +
+      '<h3 style="margin:0 0 10px;font-family:\'Songti SC\',serif">导出预览</h3>' +
+      '<p style="color:var(--muted);font-size:12.5px;margin:0 0 12px">共 ' + list.length + ' 条记录 · 图片尺寸 ' + cv.width + ' × ' + cv.height + ' 像素</p>' +
+      '<img id="exp-img" alt="成绩榜单预览" src="' + dataUrl + '">' +
+      '<div class="sd-actions">' +
+      '<button class="btn" data-close-modal type="button">关闭</button>' +
+      '<button class="btn exp-dl" id="exp-dl" type="button">下载 PNG</button>' +
+      '</div></div>';
+    $("#modal").classList.add("show");
+    const dl = $("#exp-dl");
+    if(dl) dl.addEventListener("click", () => {
       const a = document.createElement("a");
-      a.download = "成绩榜单_" + now.getFullYear() + P2(now.getMonth()+1) + P2(now.getDate()) + "_" + P2(now.getHours()) + P2(now.getMinutes()) + ".png";
-      a.href = url;
+      a.download = fileName;
+      a.href = dataUrl;
       a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
       toast("已导出图片");
-    }, "image/png");
+    });
   }
 
   // 筛选
