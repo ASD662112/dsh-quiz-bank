@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>成绩榜单 · 数字媒体专业(3+2)转段考试</title>
+<style>
+:root{
+  --paper:#F3EFE5;--paper-2:#FBF8F0;--paper-3:#FFFDF7;--ink:#17181C;--ink-2:#34363D;--muted:#7A756B;
+  --line:#DCD4C4;--line-2:#E9E2D3;--accent:#C9451E;--accent-soft:#F7E4DC;--green:#2C6E4E;--green-soft:#E4EFE6;
+  --red:#B23A2C;--red-soft:#F6E1DC;--shadow:0 1px 0 rgba(23,24,28,.03),0 18px 40px -24px rgba(23,24,28,.35);
+}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;font-family:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+  color:var(--ink);line-height:1.65;background:var(--paper)}
+.wrap{max-width:960px;margin:0 auto;padding:34px 20px 90px}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.head h1{font-family:"Songti SC",STSong,SimSun,serif;font-size:26px;margin:0}
+.head .sub{color:var(--muted);font-size:13px;margin:4px 0 0}
+.head a{color:var(--accent);text-decoration:none;font-size:13.5px;border-bottom:1px solid transparent}
+.head a:hover{border-bottom-color:var(--accent)}
+.panel{background:var(--paper-2);border:1px solid var(--line-2);border-radius:16px;padding:18px 20px;margin:16px 0;box-shadow:var(--shadow)}
+.panel h2{font-size:16px;margin:0 0 14px;font-family:"Songti SC",STSong,SimSun,serif}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 16px}
+.toolbar .chip{padding:5px 13px;border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink-2);
+  cursor:pointer;font-size:12.5px}
+.toolbar .chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.toolbar .refresh{margin-left:auto;color:var(--accent);cursor:pointer;font-size:12.5px;background:none;border:0}
+#rank-list{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:620px}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line-2)}
+th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.04em}
+tr:last-child td{border-bottom:0}
+tr.clickable{cursor:pointer}
+tr.clickable:hover td{background:var(--paper-3)}
+td.rank{font-family:"Songti SC",serif;font-weight:700;font-size:16px;width:52px}
+tr.top1 td.rank{color:var(--accent)}
+tr.top2 td.rank{color:#8A6D3B}
+tr.top3 td.rank{color:#7A756B}
+td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
+.bar-cell{display:flex;align-items:center;gap:8px}
+.bar{flex:1;height:8px;border-radius:99px;background:var(--line-2);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:99px;background:var(--accent)}
+.bar.good i{background:var(--green)}.bar.mid i{background:var(--accent)}.bar.bad i{background:var(--red)}
+.pct{width:48px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12.5px}
+.badge{display:inline-block;font-size:10.5px;padding:2px 8px;border-radius:99px;margin-left:6px;vertical-align:1px}
+.badge.good{background:var(--green-soft);color:var(--green)}
+.badge.mid{background:var(--accent-soft);color:var(--accent)}
+.badge.bad{background:var(--red-soft);color:var(--red)}
+.empty{color:var(--muted);text-align:center;padding:40px 0;font-size:14px}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.stat{background:var(--paper-3);border:1px solid var(--line-2);border-radius:12px;padding:14px 16px}
+.stat b{display:block;font-family:"Songti SC",serif;font-size:26px;line-height:1.1}
+.stat span{font-size:12px;color:var(--muted)}
+.foot{text-align:center;color:var(--muted);font-size:12px;margin-top:34px}
+.foot a{color:var(--accent);text-decoration:none}
+.loading{text-align:center;color:var(--muted);padding:50px 0;font-size:14px}
+.modal{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center}
+.modal.show{display:flex}
+.modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.modal-card{position:relative;background:var(--paper-2);border:1px solid var(--line);border-radius:18px;padding:22px 24px;max-width:680px;width:calc(100% - 40px);max-height:78vh;overflow:auto;box-shadow:0 24px 60px -24px rgba(0,0,0,.5)}
+.score-detail{min-width:0}
+.sd-group{margin:10px 0}
+.sd-group-h{font-size:12.5px;font-weight:700;padding:4px 0;margin-bottom:6px;border-bottom:1px solid var(--line-2)}
+.sd-group-h.good{color:var(--green)}
+.sd-group-h.bad{color:var(--red)}
+.sd-group-h.miss{color:var(--muted)}
+.sd-item{background:var(--paper-3);border:1px solid var(--line-2);border-radius:10px;padding:9px 12px;margin:6px 0}
+.sd-q{font-size:13px;color:var(--ink);line-height:1.5}
+.sd-a{font-size:12px;color:var(--muted);margin-top:4px}
+.sd-a b.ok{color:var(--green)}
+.sd-a b.bad{color:var(--red)}
+.sd-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
+.sd-actions .btn{padding:7px 16px;border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink-2);cursor:pointer;font-size:13px}
+@media (max-width:640px){
+  .wrap{padding:20px 12px 70px}
+  .head{flex-direction:column;align-items:flex-start;gap:10px}
+  .stat-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .stat{padding:12px 13px}
+  .stat b{font-size:21px}
+  .panel{padding:14px 12px}
+  .toolbar{gap:6px}
+  .toolbar .chip{padding:4px 10px;font-size:11.5px}
+  table{min-width:560px;font-size:12.5px}
+  th,td{padding:8px 6px}
+  .modal-card{width:calc(100% - 20px);padding:18px 14px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>成绩榜单</h1>
+      <p class="sub">数字媒体专业 3+2 转段考试 · 所有人提交的成绩 · 数据每 2 分钟自动刷新</p>
+    </div>
+    <a href="index.html">← 返回题库</a>
+  </div>
+
+  <div class="stat-grid" id="stat-grid">
+    <div class="stat"><b id="st-count">–</b><span>提交人数</span></div>
+    <div class="stat"><b id="st-avg">–</b><span>平均正确率</span></div>
+    <div class="stat"><b id="st-best">–</b><span>最高分</span></div>
+    <div class="stat"><b id="st-latest">–</b><span>最近提交</span></div>
+  </div>
+
+  <div class="panel">
+    <h2>排行榜</h2>
+    <div class="toolbar">
+      <span class="chip on" data-k="all">全部</span>
+      <span class="chip" data-k="ps">PS平面设计</span>
+      <span class="chip" data-k="anim">二维动画制作</span>
+      <span class="chip" data-k="design">网络安全/平面设计</span>
+      <button class="refresh" id="btn-refresh" type="button">⟳ 刷新</button>
+    </div>
+    <div id="rank-list"><div class="loading">加载中…</div></div>
+  </div>
+
+  <div class="foot">
+    数据来源：<a href="https://github.com/ASD662112/dsh-quiz-scores" target="_blank" rel="noopener">成绩仓库</a> ·
+    提交成绩请在教学题库交卷后点「提交成绩」
+  </div>
+</div>
+
+<div class="modal" id="modal">
+  <div class="modal-backdrop" data-close-modal></div>
+  <div class="modal-card" id="modal-card" role="dialog" aria-modal="true"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const SCORES_OWNER = "ASD662112";
+  const SCORES_REPO = "dsh-quiz-scores";
+  const CAT_NAMES = {ps:"PS平面设计", anim:"二维动画制作", design:"平面设计师与计算机网络安全"};
+
+  let all = [];
+  let filter = "all";
+
+  function $(s){ return document.querySelector(s); }
+
+  function fmtTime(ts){
+    if(!ts) return "–";
+    const d = new Date(ts);
+    const p = n => String(n).padStart(2,"0");
+    return d.getFullYear() + "/" + p(d.getMonth()+1) + "/" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+
+  function fmtDur(s){
+    if(s == null || s === "") return "–";
+    s = Math.round(s);
+    const m = Math.floor(s / 60), ss = s % 60;
+    return (m > 0 ? m + "分" : "") + ss + "秒";
+  }
+
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+  function showDetail(x){
+    const detail = Array.isArray(x.detail) ? x.detail : [];
+    const okList = detail.filter(d => d.sub && d.ok);
+    const badList = detail.filter(d => d.sub && !d.ok);
+    const missList = detail.filter(d => !d.sub);
+    function group(list, cls, tag){
+      if(!list.length) return "";
+      return '<div class="sd-group"><div class="sd-group-h ' + cls + '">' + tag + '（' + list.length + '）</div>' +
+        list.map(d =>
+          '<div class="sd-item"><div class="sd-q">' + String(d.no).padStart(2,"0") + '. ' + esc(d.q) + '</div>' +
+          '<div class="sd-a"><span>你的答案：</span><b class="' + (d.ok ? "ok" : "bad") + '">' + esc(d.your || "未作答") + '</b></div>' +
+          '<div class="sd-a"><span>正确答案：</span><b class="ok">' + esc(d.ans || "–") + '</b></div></div>'
+        ).join("") + '</div>';
+    }
+    const html =
+      '<div class="score-detail">' +
+      '<h3 style="margin:0 0 2px;font-family:"Songti SC",serif">' + esc(x.name || "匿名") + '</h3>' +
+      '<p style="color:var(--muted);font-size:12.5px;margin:0 0 12px">' +
+        (CAT_NAMES[x.cat] || x.cat || "–") + ' · 正确率 ' + Math.round(x.acc || 0) + '% · ' +
+        (x.correct ?? "–") + '/' + (x.total ?? "–") + ' · 用时 ' + fmtDur(x.used) + ' · ' + fmtTime(x.ts) + '</p>' +
+      (detail.length ? group(okList, "good", "答对") + group(badList, "bad", "答错") + group(missList, "miss", "未作答") :
+        '<p class="empty">暂无答题明细（旧数据）。</p>') +
+      '<div class="sd-actions"><button class="btn" data-close-modal type="button">关闭</button></div>' +
+      '</div>';
+    $("#modal-card").innerHTML = html;
+    $("#modal").classList.add("show");
+  }
+
+  async function loadScores(){
+    try{
+      return await loadFromGithub();
+    }catch(e){
+      return await loadFromJsdelivr();
+    }
+  }
+
+  async function loadFromGithub(){
+    const dirUrl = "https://api.github.com/repos/" + SCORES_OWNER + "/" + SCORES_REPO + "/contents/scores?t=" + Date.now();
+    const dirResp = await fetch(dirUrl, {cache:"no-store", headers:{"Accept":"application/vnd.github+json"}});
+    if(!dirResp.ok) throw new Error("dir " + dirResp.status);
+    const dir = await dirResp.json();
+    const files = (Array.isArray(dir) ? dir : [])
+      .filter(f => f.type === "file" && /\.json$/i.test(f.name))
+      .map(f => f.download_url)
+      .filter(Boolean);
+    const items = [];
+    for(const url of files){
+      try{
+        const sep = url.indexOf("?") === -1 ? "?" : "&";
+        const rr = await fetch(url + sep + "t=" + Date.now(), {cache:"no-store"});
+        if(rr.ok) items.push(JSON.parse(await rr.text()));
+      }catch(e){}
+    }
+    return items;
+  }
+
+  async function loadFromJsdelivr(){
+    const listUrl = "https://data.jsdelivr.com/v1/packages/gh/" + SCORES_OWNER + "/" + SCORES_REPO + "@main/scores";
+    const resp = await fetch(listUrl, {cache:"no-store"});
+    if(!resp.ok) throw new Error("jsdelivr " + resp.status);
+    const list = await resp.json();
+    const names = (Array.isArray(list.files) ? list.files : [])
+      .map(f => f.name)
+      .filter(n => /\.json$/i.test(n));
+    const items = [];
+    for(const n of names){
+      try{
+        const url = "https://cdn.jsdelivr.net/gh/" + SCORES_OWNER + "/" + SCORES_REPO + "@main/scores/" + encodeURIComponent(n);
+        const r = await fetch(url, {cache:"no-store"});
+        if(r.ok) items.push(JSON.parse(await r.text()));
+      }catch(e){}
+    }
+    return items;
+  }
+
+  function render(){
+    const list = filter === "all" ? all : all.filter(x => x.cat === filter);
+
+    $("#st-count").textContent = list.length || "0";
+    if(list.length){
+      const accs = list.map(x => x.acc).filter(v => typeof v === "number");
+      const avg = accs.length ? Math.round(accs.reduce((a,b)=>a+b,0) / accs.length * 10) / 10 : 0;
+      const best = Math.max.apply(null, accs);
+      const latest = Math.max.apply(null, list.map(x => x.ts || 0));
+      $("#st-avg").textContent = avg + "%";
+      $("#st-best").textContent = best + "%";
+      $("#st-latest").textContent = fmtTime(latest);
+    }else{
+      $("#st-avg").textContent = "–";
+      $("#st-best").textContent = "–";
+      $("#st-latest").textContent = "–";
+    }
+
+    const sorted = list.slice().sort((a,b) => (b.acc||0) - (a.acc||0));
+
+    if(!sorted.length){
+      $("#rank-list").innerHTML = '<div class="empty">还没有人提交成绩。</div>';
+      return;
+    }
+
+    const maxAcc = Math.max.apply(null, sorted.map(x => x.acc || 0)) || 100;
+
+    const rows = sorted.map((x, i) => {
+      const acc = Math.round(x.acc || 0);
+      const cls = acc >= 80 ? "good" : acc >= 60 ? "mid" : "bad";
+      const badge = acc >= 80 ? "good" : acc >= 60 ? "mid" : "bad";
+      const badgeTxt = acc >= 80 ? "优秀" : acc >= 60 ? "合格" : "待提升";
+      const rankCls = i === 0 ? "top1" : i === 1 ? "top2" : i === 2 ? "top3" : "";
+      const pct = Math.max(0, Math.min(100, acc));
+      const pctW = Math.max(4, pct / maxAcc * 100);
+      return '<tr class="' + rankCls + ' clickable" data-idx="' + i + '">' +
+        '<td class="rank">' + (i + 1) + '</td>' +
+        '<td>' + (x.name || "匿名") + '<span class="badge ' + badge + '">' + badgeTxt + '</span></td>' +
+        '<td>' + (CAT_NAMES[x.cat] || x.cat || "–") + '</td>' +
+        '<td class="score">' + acc + '%</td>' +
+        '<td><div class="bar-cell"><div class="bar ' + cls + '"><i style="width:' + pctW + '%"></i></div><span class="pct">' + x.correct + '/' + x.total + '</span></div></td>' +
+        '<td>' + fmtDur(x.used) + '</td>' +
+        '<td>' + fmtTime(x.ts) + '</td>' +
+        '</tr>';
+    }).join("");
+
+    $("#rank-list").innerHTML =
+      '<table><thead><tr><th>名次</th><th>姓名</th><th>科目</th><th>正确率</th><th>答题情况</th><th>用时</th><th>提交时间</th></tr></thead><tbody>' +
+      rows + '</tbody></table>';
+
+    document.querySelectorAll(".clickable").forEach(tr => {
+      tr.addEventListener("click", () => {
+        const idx = Number(tr.dataset.idx);
+        if(!isNaN(idx) && sorted[idx]) showDetail(sorted[idx]);
+      });
+    });
+  }
+
+  async function refresh(){
+    $("#rank-list").innerHTML = '<div class="loading">加载中…</div>';
+    try{
+      all = await loadScores();
+      render();
+    }catch(e){
+      $("#rank-list").innerHTML = '<div class="empty">加载失败，请稍后重试。</div>';
+    }
+  }
+
+  document.querySelectorAll(".toolbar .chip").forEach(ch => {
+    ch.addEventListener("click", () => {
+      document.querySelectorAll(".toolbar .chip").forEach(c => c.classList.remove("on"));
+      ch.classList.add("on");
+      filter = ch.dataset.k;
+      render();
+    });
+  });
+  $("#btn-refresh").addEventListener("click", refresh);
+  $("#modal").addEventListener("click", e => {
+    if(e.target.closest("[data-close-modal]")) $("#modal").classList.remove("show");
+  });
+  document.addEventListener("keydown", e => {
+    if(e.key === "Escape") $("#modal").classList.remove("show");
+  });
+
+  refresh();
+  setInterval(refresh, 120000);
+})();
+</script>
+</body>
+</html>
