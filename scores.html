@@ -115,20 +115,22 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
   }
 
   async function loadScores(){
-    // 用 jsDelivr 数据 API 列目录（国内 CDN 可达），再逐个拉取
-    const listUrl = "https://data.jsdelivr.com/v1/packages/gh/" + SCORES_OWNER + "/" + SCORES_REPO + "@main/scores";
-    const list = await (await fetch(listUrl, {cache:"no-store"})).json();
-    const files = (list.files || [])
-      .map(f => f.name)
-      .filter(n => /^.+\.json$/i.test(n));
+    // 用 GitHub API 读取公开成绩仓库（无需 token，数据实时）
+    const dirUrl = "https://api.github.com/repos/" + SCORES_OWNER + "/" + SCORES_REPO + "/contents/scores";
+    const dirResp = await fetch(dirUrl, {cache:"no-store", headers:{"Accept":"application/vnd.github+json"}});
+    if(!dirResp.ok) throw new Error("dir " + dirResp.status);
+    const dir = await dirResp.json();
+    const files = (Array.isArray(dir) ? dir : [])
+      .filter(f => f.type === "file" && /\.json$/i.test(f.name))
+      .map(f => f.download_url)
+      .filter(Boolean);
 
     const items = [];
-    for(const name of files){
+    for(const url of files){
       try{
-        const url = "https://cdn.jsdelivr.net/gh/" + SCORES_OWNER + "/" + SCORES_REPO + "@main/scores/" + encodeURIComponent(name);
         const raw = await fetchText(url);
         const obj = JSON.parse(raw);
-        obj._file = name;
+        obj._url = url;
         items.push(obj);
       }catch(e){ /* 单个文件失败跳过 */ }
     }
