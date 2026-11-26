@@ -83,6 +83,7 @@
 .sd-input{width:100%;border:1px solid var(--line);background:var(--paper-3);color:var(--ink);
   border-radius:10px;padding:9px 12px;font-size:14px;outline:none}
 .sd-input:focus{border-color:var(--accent)}
+.sd-input[readonly]{background:var(--line-2);color:var(--muted);cursor:not-allowed}
 .sd-input.sd-err{border-color:var(--red);background:var(--red-soft)}
 .sd-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
 /* ============ 新功能：收藏/背诵/搜索/错题本/帮助 ============ */
@@ -3415,6 +3416,12 @@ input,textarea,select,[contenteditable="true"],.allow-select,
     s = s.replace(/[\\\/:*?"<>|#]/g, "");
     return s.slice(0, 40);
   }
+  // 当前系统时间戳：年(4位)+时(2位)+分(2位)+秒(2位)，如 2026160256
+  function nowStamp(){
+    const d = new Date();
+    const p = n => String(n).padStart(2, "0");
+    return String(d.getFullYear()) + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+  }
   function bindScoreInputClear(){
     ["#score-id", "#score-name"].forEach(sel => {
       const el = $(sel);
@@ -3426,12 +3433,13 @@ input,textarea,select,[contenteditable="true"],.allow-select,
     const r = state.result;
     const cat = themeId || "ps";
     const catName = CAT_META[cat] || cat;
+    const stamp = nowStamp();
     const html =
       '<div class="score-dialog">' +
       '<h3 style="margin:0 0 4px;font-family:var(--serif)">提交本次成绩</h3>' +
       '<p style="color:var(--muted);font-size:12.5px;margin:0 0 14px">' + catName + ' · 正确率 ' + Math.round(r.acc) + '% · ' + r.correct + '/' + r.total + '</p>' +
-      '<label class="sd-label">学号 / 昵称 <span style="color:var(--red)">*</span>（用于榜单识别，同一学号重复提交会覆盖旧成绩）</label>' +
-      '<input id="score-id" class="sd-input" placeholder="如：2023001 或 张三" autocomplete="off">' +
+      '<label class="sd-label">学号 / 昵称（自动生成，不可修改）</label>' +
+      '<input id="score-id" class="sd-input" value="' + stamp + '" readonly>' +
       '<label class="sd-label">姓名 <span style="color:var(--red)">*</span>（显示在榜单）</label>' +
       '<input id="score-name" class="sd-input" placeholder="真实姓名或昵称" autocomplete="off">' +
       '<div class="sd-actions">' +
