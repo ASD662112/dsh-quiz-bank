@@ -354,13 +354,14 @@ table{min-width:620px}
   }
 
   async function loadFromJsdelivr(){
-    const listUrl = "https://data.jsdelivr.com/v1/packages/gh/" + SCORES_OWNER + "/" + SCORES_REPO + "@main/scores";
+    const listUrl = "https://data.jsdelivr.com/v1/package/gh/" + SCORES_OWNER + "/" + SCORES_REPO + "@main/flat";
     const resp = await fetch(listUrl, {cache:"no-store"});
     if(!resp.ok) throw new Error("jsdelivr " + resp.status);
     const list = await resp.json();
     const names = (Array.isArray(list.files) ? list.files : [])
-      .map(f => f.name)
-      .filter(n => /\.json$/i.test(n));
+      .map(f => String(f.name || "").replace(/^\//, ""))
+      .filter(n => /^scores\/.+\.json$/i.test(n))
+      .map(n => n.replace(/^scores\//, ""));
     const items = [];
     for(const n of names){
       try{
