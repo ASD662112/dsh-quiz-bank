@@ -11,6 +11,16 @@
   --red:#B23A2C;--red-soft:#F6E1DC;--shadow:0 1px 0 rgba(23,24,28,.03),0 18px 40px -24px rgba(23,24,28,.35);
 }
 *{box-sizing:border-box}
+/* ===== 禁止拖选文字（保留输入框可编辑） ===== */
+html,body{
+  -webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+input,textarea,select,[contenteditable="true"],.allow-select,
+.sd-q,.sd-a,.score-detail .sd-item,.sb-table td,.modal-card p,.modal-card h3{
+  -webkit-user-select:text;-moz-user-select:text;-ms-user-select:text;user-select:text;
+}
+
 body{margin:0;min-height:100vh;font-family:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
   color:var(--ink);line-height:1.65;background:var(--paper)}
 .wrap{max-width:1000px;margin:0 auto;padding:34px 20px 90px}
