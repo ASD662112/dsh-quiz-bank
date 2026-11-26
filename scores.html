@@ -115,34 +115,24 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
   }
 
   async function loadScores(){
-    // 读取成绩仓库的所有 Issue（公开仓库，无需 token）
-    const url = "https://api.github.com/repos/" + SCORES_OWNER + "/" + SCORES_REPO + "/issues?state=all&per_page=100";
-    const resp = await fetch(url, {cache:"no-store", headers:{"Accept":"application/vnd.github+json"}});
-    if(!resp.ok) throw new Error("issues " + resp.status);
-    const issues = await resp.json();
+    // 读取成绩仓库 scores 目录下所有 json 文件（公开仓库，无需 token）
+    const dirUrl = "https://api.github.com/repos/" + SCORES_OWNER + "/" + SCORES_REPO + "/contents/scores";
+    const dirResp = await fetch(dirUrl, {cache:"no-store", headers:{"Accept":"application/vnd.github+json"}});
+    if(!dirResp.ok) throw new Error("dir " + dirResp.status);
+    const dir = await dirResp.json();
+    const files = (Array.isArray(dir) ? dir : [])
+      .filter(f => f.type === "file" && /\.json$/i.test(f.name))
+      .map(f => f.download_url)
+      .filter(Boolean);
 
     const items = [];
-    for(const it of issues){
-      if(it.pull_request) continue; // 跳过 PR
-      const title = it.title || "";
-      // 解析标题：【成绩】学号_姓名_科目_正确率
-      const m = title.match(/【成绩】([^_]+)_([^_]+)_(ps|anim|design)_([\d.]+)%/);
-      if(!m) continue;
-      const acc = parseFloat(m[4]);
-      // 从正文提取更多字段（可选）
-      let body = {};
+    for(const url of files){
       try{
-        const bm = (it.body || "").match(/\{.*\}/s);
-        if(bm) body = JSON.parse(bm[0]);
-      }catch(e){}
-      items.push({
-        id: m[1], name: m[2], cat: m[3],
-        acc: acc,
-        correct: body.correct ?? null,
-        total: body.total ?? null,
-        used: body.used ?? null,
-        ts: new Date(it.created_at).getTime()
-      });
+        const raw = await fetchText(url);
+        const obj = JSON.parse(raw);
+        obj._url = url;
+        items.push(obj);
+      }catch(e){ /* 单个文件失败跳过 */ }
     }
     return items;
   }
