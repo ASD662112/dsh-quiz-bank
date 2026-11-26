@@ -3664,13 +3664,15 @@ input,textarea,select,[contenteditable="true"],.allow-select,
   const sbMissing = v => (v == null || v === "" || isNaN(parseFloat(v)));
 
   // 连续名次 1..N（正确率降序 → 答对数降序 → 用时升序）
-  // 同科目 + 同姓名 只保留最好的一条：正确率高 > 用时短 > 提交早
+  // 同科目 + 同姓名 只保留最好的一条：答题情况(答对数) > 正确率 > 用时短 > 提交早
   function sbIsBetterRecord(a, b){
+    const ca = sbNum(a.correct), cb = sbNum(b.correct);
+    if(ca !== cb) return ca > cb;                 // 1) 答题情况：答对多者优
     const da = sbNum(a.acc) - sbNum(b.acc);
-    if(Math.abs(da) > 1e-9) return da > 0;
+    if(Math.abs(da) > 1e-9) return da > 0;        // 2) 正确率：高者优
     const ua = sbNum(a.used), ub = sbNum(b.used);
-    if(ua !== ub) return ua < ub;
-    return sbNum(a.ts) < sbNum(b.ts);
+    if(ua !== ub) return ua < ub;                 // 3) 用时：短者优
+    return sbNum(a.ts) < sbNum(b.ts);             // 4) 提交时间：早者优
   }
   function sbDedupeBest(list){
     const map = new Map();
