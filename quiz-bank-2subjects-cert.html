@@ -57,16 +57,17 @@
   .sb-toolbar .chip{padding:4px 10px;font-size:11.5px}
   .sb-table{min-width:560px;font-size:12.5px}
   .sb-table th,.sb-table td{padding:8px 6px}
-  .score-detail{min-width:min(92vw,560px)}
+  .modal-card.wide{width:100%}
 }
 /* 答题明细 */
-.score-detail{min-width:min(560px,86vw);max-height:72vh;overflow:auto}
+.modal-card.wide{width:min(720px,100%)}
+.score-detail{width:100%;max-height:70vh;overflow-y:auto;overflow-x:hidden;word-break:break-word;overflow-wrap:anywhere}
 .sd-group{margin:10px 0}
 .sd-group-h{font-size:12.5px;font-weight:700;padding:4px 0;margin-bottom:6px;border-bottom:1px solid var(--line-2)}
 .sd-group-h.good{color:var(--green)}
 .sd-group-h.bad{color:var(--red)}
 .sd-group-h.miss{color:var(--muted)}
-.sd-item{background:var(--paper-3);border:1px solid var(--line-2);border-radius:10px;padding:9px 12px;margin:6px 0}
+.sd-item{background:var(--paper-3);border:1px solid var(--line-2);border-radius:10px;padding:9px 12px;margin:6px 0;word-break:break-word;overflow-wrap:anywhere}
 .sd-q{font-size:13px;color:var(--ink);line-height:1.5}
 .sd-a{font-size:12px;color:var(--muted);margin-top:4px}
 .sd-a b.ok{color:var(--green)}
@@ -2994,14 +2995,17 @@ input, textarea{
   }
 
   /* ---------------- modal ---------------- */
-  function openModal(html){
-    $("#modal-card").innerHTML = html;
+  function openModal(html, wide){
+    const card = $("#modal-card");
+    card.classList.toggle("wide", !!wide);
+    card.innerHTML = html;
     $("#modal").hidden = false;
     lockBody(true);
   }
   function closeModal(){
     $("#modal").hidden = true;
     $("#modal-card").innerHTML = "";
+    $("#modal-card").classList.remove("wide");
     if($("#drawer").hidden) lockBody(false);
   }
 
@@ -3643,7 +3647,7 @@ input, textarea{
         '<p class="empty-note">暂无答题明细（旧数据）。</p>') +
       '<div class="sd-actions"><button class="btn ghost" data-close-modal type="button">关闭</button></div>' +
       '</div>';
-    openModal(html);
+    openModal(html, true);
   }
   function renderScoreboard(){
     const list = sbFilteredList();
