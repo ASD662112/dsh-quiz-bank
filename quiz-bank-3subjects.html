@@ -3651,18 +3651,14 @@ input,textarea,select,[contenteditable="true"],.allow-select,
     return items;
   }
   async function loadScoreboard(){
-    // 双源并行抓取后合并去重：任一源缺文件都能补全
-    const results = await Promise.allSettled([sbLoadGithub(), sbLoadJsdelivr()]);
-    const map = new Map();
-    for(const r of results){
-      if(r.status !== "fulfilled" || !Array.isArray(r.value)) continue;
-      for(const item of r.value){
-        const key = item._file || item.id || JSON.stringify(item).slice(0, 80);
-        if(!map.has(key)) map.set(key, item);
-      }
+    // 优先 GitHub 实时源（删除后立即一致）；失败才回退 jsDelivr CDN
+    try{
+      const gh = await sbLoadGithub();
+      if(gh && gh.length) return gh;
+      throw new Error("github empty");
+    }catch(e){
+      return await sbLoadJsdelivr();
     }
-    if(!map.size) throw new Error("no data");
-    return Array.from(map.values());
   }
   const SB_TOKEN = "github_pat_11BRVNSMI0bOtOhJ87OByv_" +
       "hVVKPw8yi6X1QYDyd6ZCWOnOnkBOA7GM47Mkv47" +

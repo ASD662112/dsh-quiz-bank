@@ -390,18 +390,14 @@ input,textarea,select,[contenteditable="true"],.allow-select,
   }
 
   async function loadScores(){
-    // 双源并行抓取后合并去重：任一源缺文件都能补全
-    const results = await Promise.allSettled([loadFromGithub(), loadFromJsdelivr()]);
-    const map = new Map();
-    for(const r of results){
-      if(r.status !== "fulfilled" || !Array.isArray(r.value)) continue;
-      for(const item of r.value){
-        const key = item._file || item.id || JSON.stringify(item).slice(0, 80);
-        if(!map.has(key)) map.set(key, item);
-      }
+    // 优先 GitHub 实时源（带 sha，可删除且删除后立即一致）；失败才回退 jsDelivr
+    try{
+      const gh = await loadFromGithub();
+      if(gh && gh.length) return gh;
+      throw new Error("github empty");
+    }catch(e){
+      return await loadFromJsdelivr();
     }
-    if(!map.size) throw new Error("no data");
-    return Array.from(map.values());
   }
 
   async function loadFromGithub(){
@@ -455,6 +451,22 @@ input,textarea,select,[contenteditable="true"],.allow-select,
   }
 
   async function deleteScore(file, sha){
+    // sha 缺失（如来自 jsDelivr 缓存）时，先向 GitHub API 查询最新 sha
+    if(!sha){
+      try{
+        const gr = await fetch("https://api.github.com/repos/" + SCORES_OWNER + "/" + SCORES_REPO + "/contents/scores/" + file, {
+          headers: {"Authorization": "token " + SCORE_TOKEN, "Accept": "application/vnd.github+json"}
+        });
+        if(gr.ok){
+          const gd = await gr.json();
+          sha = gd.sha;
+        }else{
+          return gr; // 文件已不存在（404）等，直接返回
+        }
+      }catch(e){
+        return {ok:false, status:0};
+      }
+    }
     const r = await fetch("https://api.github.com/repos/" + SCORES_OWNER + "/" + SCORES_REPO + "/contents/scores/" + file, {
       method: "DELETE",
       headers: {
@@ -597,6 +609,23 @@ input,textarea,select,[contenteditable="true"],.allow-select,
     }
   }
 
+  // 删除后用：只从 GitHub 实时源加载，避免 jsDelivr 缓存让已删记录复活
+  async function refreshFromGithub(){
+    $("#rank-list").innerHTML = '<div class="loading">加载中…</div>';
+    try{
+      all = await loadFromGithub();
+      render();
+    }catch(e){
+      // GitHub 失败时退回双源，至少能显示数据
+      try{
+        all = await loadScores();
+        render();
+      }catch(e2){
+        $("#rank-list").innerHTML = '<div class="empty">加载失败，请稍后重试。</div>';
+      }
+    }
+  }
+
   async function deleteSelected(){
     if(!selected.size){ toast("请先勾选要删除的成绩"); return; }
     if(!confirm("确定删除所选 " + selected.size + " 条成绩？此操作不可恢复。")) return;
@@ -607,7 +636,7 @@ input,textarea,select,[contenteditable="true"],.allow-select,
     }
     selected.clear();
     toast("已删除 " + ok + " / " + targets.length + " 条");
-    await refresh();
+    await refreshFromGithub();
   }
 
   async function deleteAll(){
@@ -620,7 +649,7 @@ input,textarea,select,[contenteditable="true"],.allow-select,
     }
     selected.clear();
     toast("已删除 " + ok + " / " + targets.length + " 条");
-    await refresh();
+    await refreshFromGithub();
   }
 
   // 筛选
