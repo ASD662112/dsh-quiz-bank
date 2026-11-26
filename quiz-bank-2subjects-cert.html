@@ -3650,20 +3650,66 @@ input,textarea,select,[contenteditable="true"],.allow-select,
     }
     return sbSortList(list);
   }
+  const sbNum = v => (typeof v === "number" ? v : (parseFloat(v) || 0));
+  const sbMissing = v => (v == null || v === "" || isNaN(parseFloat(v)));
+
+  // 基于全量成绩计算真实名次（正确率降序，同分并列）
+  function sbComputeRanks(){
+    const sorted = sbData.slice().sort((a,b) =>
+      (sbNum(b.acc) - sbNum(a.acc)) ||
+      (sbNum(b.correct) - sbNum(a.correct)) ||
+      (sbNum(b.ts) - sbNum(a.ts))
+    );
+    let lastAcc = null, lastRank = 0;
+    sorted.forEach((x, i) => {
+      const acc = sbNum(x.acc);
+      if(lastAcc === null || Math.abs(acc - lastAcc) > 1e-9){
+        lastRank = i + 1;
+        lastAcc = acc;
+      }
+      x._rank = lastRank;
+    });
+  }
+
   function sbSortList(list){
     const k = sbFilter.sortKey;
-    const dir = sbFilter.sortDir === "asc" ? 1 : -1;
-    const num = v => (typeof v === "number" ? v : parseFloat(v) || 0);
-    const cmp = {
-      rank:   (a,b) => num(a.acc) - num(b.acc),
-      name:   (a,b) => String(a.name||"").localeCompare(String(b.name||""), "zh"),
-      cat:    (a,b) => String(SB_CATS[a.cat]||a.cat||"").localeCompare(String(SB_CATS[b.cat]||b.cat||""), "zh"),
-      acc:    (a,b) => num(a.acc) - num(b.acc),
-      ratio:  (a,b) => (num(a.correct)/Math.max(1,num(a.total))) - (num(b.correct)/Math.max(1,num(b.total))),
-      used:   (a,b) => num(a.used) - num(b.used),
-      ts:     (a,b) => num(a.ts) - num(b.ts)
-    }[k] || ((a,b) => num(a.acc) - num(b.acc));
-    return list.sort((a,b) => cmp(a,b) * dir);
+    const asc = sbFilter.sortDir === "asc";
+
+    if(k === "ratio"){
+      return list.sort((a,b) => {
+        const r = (sbNum(a.correct) - sbNum(b.correct)) || (sbNum(a.total) - sbNum(b.total));
+        if(r === 0) return (sbNum(b.acc) - sbNum(a.acc)) || (sbNum(b.ts) - sbNum(a.ts));
+        return asc ? r : -r;
+      });
+    }
+
+    const getVal = {
+      rank:  x => x._rank,
+      name:  x => String(x.name || "匿名"),
+      cat:   x => String(SB_CATS[x.cat] || x.cat || ""),
+      acc:   x => sbNum(x.acc),
+      used:  x => x.used,
+      ts:    x => x.ts
+    }[k] || (x => sbNum(x.acc));
+
+    return list.sort((a,b) => {
+      const av = getVal(a), bv = getVal(b);
+      const am = sbMissing(av), bm = sbMissing(bv);
+      if(am && bm) return (sbNum(b.acc) - sbNum(a.acc)) || (sbNum(b.ts) - sbNum(a.ts));
+      if(am) return 1;
+      if(bm) return -1;
+
+      let r;
+      if(typeof av === "string" || typeof bv === "string"){
+        r = String(av).localeCompare(String(bv), "zh");
+      }else{
+        r = sbNum(av) - sbNum(bv);
+      }
+      if(r === 0){
+        return (sbNum(b.acc) - sbNum(a.acc)) || (sbNum(b.ts) - sbNum(a.ts));
+      }
+      return asc ? r : -r;
+    });
   }
   function sbDur(s){
     if(s == null || s === "") return "–";
@@ -3702,6 +3748,7 @@ input,textarea,select,[contenteditable="true"],.allow-select,
     openModal(html, true);
   }
   function renderScoreboard(){
+    sbComputeRanks();
     const list = sbFilteredList();
     $("#sb-sub").textContent = "所有人提交的成绩 · 只读 · 共 " + list.length + " 人";
     // 统计
@@ -3731,17 +3778,19 @@ input,textarea,select,[contenteditable="true"],.allow-select,
     }
     const maxAcc = Math.max.apply(null, sorted.map(x => x.acc || 0)) || 100;
     const rows = sorted.map((x, i) => {
-      const acc = Math.round(x.acc || 0);
+      const accRaw = sbNum(x.acc);
+      const acc = Math.round(accRaw);
+      const accDisp = (Math.abs(accRaw - acc) < 0.05) ? acc : (Math.round(accRaw * 10) / 10);
       const cls = acc >= 80 ? "good" : acc >= 60 ? "mid" : "bad";
       const badgeTxt = acc >= 80 ? "优秀" : acc >= 60 ? "合格" : "待提升";
-      const rankCls = i === 0 ? "top1" : i === 1 ? "top2" : i === 2 ? "top3" : "";
+      const rankCls = (x._rank === 1) ? "top1" : (x._rank === 2) ? "top2" : (x._rank === 3) ? "top3" : "";
       const pct = Math.max(0, Math.min(100, acc));
       const pctW = Math.max(4, pct / maxAcc * 100);
       return '<tr class="' + rankCls + '" data-sbi="' + i + '" style="cursor:pointer">' +
-        '<td class="rank">' + (i + 1) + '</td>' +
+        '<td class="rank">' + (x._rank || (i + 1)) + '</td>' +
         '<td>' + (x.name || "匿名") + '<span class="sb-badge ' + cls + '">' + badgeTxt + '</span></td>' +
         '<td>' + (SB_CATS[x.cat] || x.cat || "–") + '</td>' +
-        '<td class="score">' + acc + '%</td>' +
+        '<td class="score">' + accDisp + '%</td>' +
         '<td><div class="sb-bar"><div class="tr ' + cls + '"><i style="width:' + pctW + '%"></i></div><span class="pct">' + x.correct + '/' + x.total + '</span></div></td>' +
         '<td>' + sbDur(x.used) + '</td>' +
         '<td>' + sbTime(x.ts) + '</td>' +
