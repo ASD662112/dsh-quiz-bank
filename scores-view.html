@@ -255,51 +255,24 @@ input,textarea,select,[contenteditable="true"],.allow-select,
   const sNum = v => (typeof v === "number" ? v : (parseFloat(v) || 0));
   const sMissing = v => (v == null || v === "" || isNaN(parseFloat(v)));
 
-  // 基于全量成绩计算真实名次（正确率降序，同分并列）
+  // 连续名次 1..N（正确率降序 → 答对数降序 → 用时升序）
   function computeRanks(){
     const sorted = all.slice().sort((a,b) =>
       (sNum(b.acc) - sNum(a.acc)) ||
       (sNum(b.correct) - sNum(a.correct)) ||
-      (sNum(b.ts) - sNum(a.ts))
+      (sNum(a.used) - sNum(b.used)) ||
+      (sNum(a.ts) - sNum(b.ts))
     );
-    let lastAcc = null, lastRank = 0;
-    sorted.forEach((x, i) => {
-      const acc = sNum(x.acc);
-      if(lastAcc === null || Math.abs(acc - lastAcc) > 1e-9){
-        lastRank = i + 1;
-        lastAcc = acc;
-      }
-      x._rank = lastRank;
-    });
+    sorted.forEach((x, i) => { x._rank = i + 1; });
   }
 
-  function sortList(list){
-    const k = filter.sortKey;
-    const asc = filter.sortDir === "asc";
-
-    // 「答题情况」：先比答对数量，再比总题数
-    if(k === "ratio"){
-      return list.sort((a,b) => {
-        const r = (sNum(a.correct) - sNum(b.correct)) || (sNum(a.total) - sNum(b.total));
-        if(r === 0) return (sNum(b.acc) - sNum(a.acc)) || (sNum(b.ts) - sNum(a.ts));
-        return asc ? r : -r;
-      });
-    }
-
-    const getVal = {
-      rank:  x => x._rank,
-      name:  x => String(x.name || "匿名"),
-      cat:   x => String(CAT_NAMES[x.cat] || x.cat || ""),
-      acc:   x => sNum(x.acc),
-      used:  x => x.used,
-      ts:    x => x.ts
-    }[k] || (x => sNum(x.acc));
-
+  // 通用：值排序 + 缺失置后 + 稳定次级排序
+  function sortBy(getVal, asc, list){
     return list.sort((a,b) => {
       const av = getVal(a), bv = getVal(b);
       const am = sMissing(av), bm = sMissing(bv);
-      if(am && bm) return (sNum(b.acc) - sNum(a.acc)) || (sNum(b.ts) - sNum(a.ts));
-      if(am) return 1;   // 缺失值永远排最后
+      if(am && bm) return tieBreak(a, b);
+      if(am) return 1;
       if(bm) return -1;
 
       let r;
@@ -308,11 +281,32 @@ input,textarea,select,[contenteditable="true"],.allow-select,
       }else{
         r = sNum(av) - sNum(bv);
       }
-      if(r === 0){
-        return (sNum(b.acc) - sNum(a.acc)) || (sNum(b.ts) - sNum(a.ts));
-      }
+      if(r === 0) return tieBreak(a, b);
       return asc ? r : -r;
     });
+  }
+
+  // 同值时的稳定次级排序
+  function tieBreak(a, b){
+    return (sNum(b.acc) - sNum(a.acc)) ||
+           (sNum(b.correct) - sNum(a.correct)) ||
+           (sNum(a.used) - sNum(b.used)) ||
+           (sNum(a.ts) - sNum(b.ts));
+  }
+
+  function sortList(list){
+    const k = filter.sortKey;
+    const asc = filter.sortDir === "asc";
+    switch(k){
+      case "rank":  return list.slice().sort((a,b) => (a._rank||0) - (b._rank||0));
+      case "name":  return sortBy(x => String(x.name || "匿名"), asc, list);
+      case "cat":   return sortBy(x => String(CAT_NAMES[x.cat] || x.cat || ""), asc, list);
+      case "acc":   return sortBy(x => sNum(x.acc), asc, list);
+      case "ratio": return sortBy(x => sNum(x.correct), asc, list);
+      case "used":  return sortBy(x => sNum(x.used), asc, list);
+      case "ts":    return sortBy(x => sNum(x.ts), asc, list);
+      default:      return sortBy(x => sNum(x.acc), asc, list);
+    }
   }
 
   function filteredList(){

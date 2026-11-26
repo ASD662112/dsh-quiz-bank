@@ -3699,63 +3699,56 @@ input,textarea,select,[contenteditable="true"],.allow-select,
   const sbNum = v => (typeof v === "number" ? v : (parseFloat(v) || 0));
   const sbMissing = v => (v == null || v === "" || isNaN(parseFloat(v)));
 
-  // 基于全量成绩计算真实名次（正确率降序，同分并列）
+  // 连续名次 1..N（正确率降序 → 答对数降序 → 用时升序）
   function sbComputeRanks(){
     const sorted = sbData.slice().sort((a,b) =>
       (sbNum(b.acc) - sbNum(a.acc)) ||
       (sbNum(b.correct) - sbNum(a.correct)) ||
-      (sbNum(b.ts) - sbNum(a.ts))
+      (sbNum(a.used) - sbNum(b.used)) ||
+      (sbNum(a.ts) - sbNum(b.ts))
     );
-    let lastAcc = null, lastRank = 0;
-    sorted.forEach((x, i) => {
-      const acc = sbNum(x.acc);
-      if(lastAcc === null || Math.abs(acc - lastAcc) > 1e-9){
-        lastRank = i + 1;
-        lastAcc = acc;
-      }
-      x._rank = lastRank;
-    });
+    sorted.forEach((x, i) => { x._rank = i + 1; });
   }
 
-  function sbSortList(list){
-    const k = sbFilter.sortKey;
-    const asc = sbFilter.sortDir === "asc";
+  // 同值时的稳定次级排序
+  function sbTieBreak(a, b){
+    return (sbNum(b.acc) - sbNum(a.acc)) ||
+           (sbNum(b.correct) - sbNum(a.correct)) ||
+           (sbNum(a.used) - sbNum(b.used)) ||
+           (sbNum(a.ts) - sbNum(b.ts));
+  }
 
-    if(k === "ratio"){
-      return list.sort((a,b) => {
-        const r = (sbNum(a.correct) - sbNum(b.correct)) || (sbNum(a.total) - sbNum(b.total));
-        if(r === 0) return (sbNum(b.acc) - sbNum(a.acc)) || (sbNum(b.ts) - sbNum(a.ts));
-        return asc ? r : -r;
-      });
-    }
-
-    const getVal = {
-      rank:  x => x._rank,
-      name:  x => String(x.name || "匿名"),
-      cat:   x => String(SB_CATS[x.cat] || x.cat || ""),
-      acc:   x => sbNum(x.acc),
-      used:  x => x.used,
-      ts:    x => x.ts
-    }[k] || (x => sbNum(x.acc));
-
+  function sbSortBy(getVal, asc, list){
     return list.sort((a,b) => {
       const av = getVal(a), bv = getVal(b);
       const am = sbMissing(av), bm = sbMissing(bv);
-      if(am && bm) return (sbNum(b.acc) - sbNum(a.acc)) || (sbNum(b.ts) - sbNum(a.ts));
+      if(am && bm) return sbTieBreak(a, b);
       if(am) return 1;
       if(bm) return -1;
-
       let r;
       if(typeof av === "string" || typeof bv === "string"){
         r = String(av).localeCompare(String(bv), "zh");
       }else{
         r = sbNum(av) - sbNum(bv);
       }
-      if(r === 0){
-        return (sbNum(b.acc) - sbNum(a.acc)) || (sbNum(b.ts) - sbNum(a.ts));
-      }
+      if(r === 0) return sbTieBreak(a, b);
       return asc ? r : -r;
     });
+  }
+
+  function sbSortList(list){
+    const k = sbFilter.sortKey;
+    const asc = sbFilter.sortDir === "asc";
+    switch(k){
+      case "rank":  return list.slice().sort((a,b) => (a._rank||0) - (b._rank||0));
+      case "name":  return sbSortBy(x => String(x.name || "匿名"), asc, list);
+      case "cat":   return sbSortBy(x => String(SB_CATS[x.cat] || x.cat || ""), asc, list);
+      case "acc":   return sbSortBy(x => sbNum(x.acc), asc, list);
+      case "ratio": return sbSortBy(x => sbNum(x.correct), asc, list);
+      case "used":  return sbSortBy(x => sbNum(x.used), asc, list);
+      case "ts":    return sbSortBy(x => sbNum(x.ts), asc, list);
+      default:      return sbSortBy(x => sbNum(x.acc), asc, list);
+    }
   }
   function sbDur(s){
     if(s == null || s === "") return "–";
