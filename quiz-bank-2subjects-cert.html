@@ -8,6 +8,13 @@
 <link rel="icon" type="image/svg+xml" sizes="any" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgdmlld0JveD0iMCAwIDY0IDY0IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IuW5s+mdouiuvuiuoeW4iOWkjeS5oOmimOW6kyI+CiAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMxNzE4MUMiLz4KICA8ZyBmaWxsPSJub25lIiBzdHJva2U9IiNGNUVGRTMiIHN0cm9rZS13aWR0aD0iMy42IiBzdHJva2UtbGluZWNhcD0icm91bmQiPgogICAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMTYuNSIvPgogICAgPHBhdGggZD0iTTMyIDQuNXY3LjVNMzIgNTJ2Ny41TTQuNSAzMkgxMk01MiAzMmg3LjUiLz4KICA8L2c+CiAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iNi40IiBmaWxsPSIjQzk0NTFFIi8+Cjwvc3ZnPgo=">
 <meta name="theme-color" content="#F3EFE5">
 <style>
+/* 提交成绩弹窗 */
+.score-dialog{min-width:min(400px,78vw)}
+.sd-label{display:block;font-size:12px;color:var(--muted);margin:12px 0 6px}
+.sd-input{width:100%;border:1px solid var(--line);background:var(--paper-3);color:var(--ink);
+  border-radius:10px;padding:9px 12px;font-size:14px;outline:none}
+.sd-input:focus{border-color:var(--accent)}
+.sd-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
 /* ============ 新功能：收藏/背诵/搜索/错题本/帮助 ============ */
 /* 顶栏工具：收藏星标与搜索 */
 .qmeta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -866,7 +873,7 @@ input, textarea{
     <div class="home">
       <div class="masthead">
         <span><b id="brand-short">PS</b> / <span id="brand-name">课程题库</span></span>
-        <span class="masthead-right"><span>数字媒体 3+2 · 转段考试</span><span class="hometools"><button class="toolbtn" id="btn-stats" type="button"><span class="ico">▤</span>学习统计</button><button class="toolbtn" id="btn-dark" type="button"><span class="ico">☾</span>夜间</button><button class="toolbtn" id="btn-font" type="button"><span class="ico">A</span>字号</button><button class="toolbtn" id="btn-search" type="button"><span class="ico">⌕</span>搜索</button><button class="toolbtn" id="btn-wrongbook" type="button"><span class="ico">✎</span>错题本</button><button class="link-btn" id="btn-switch-theme" type="button">切换主题</button></span></span>
+        <span class="masthead-right"><span>数字媒体 3+2 · 转段考试</span><span class="hometools"><button class="toolbtn" id="btn-stats" type="button"><span class="ico">▤</span>学习统计</button><button class="toolbtn" id="btn-dark" type="button"><span class="ico">☾</span>夜间</button><button class="toolbtn" id="btn-font" type="button"><span class="ico">A</span>字号</button><button class="toolbtn" id="btn-search" type="button"><span class="ico">⌕</span>搜索</button><button class="toolbtn" id="btn-wrongbook" type="button"><span class="ico">✎</span>错题本</button><a class="toolbtn" id="btn-scoreboard" href="scores.html" style="text-decoration:none" type="button"><span class="ico">🏆</span>成绩榜单</a><button class="link-btn" id="btn-switch-theme" type="button">切换主题</button></span></span>
       </div>
 
       <header class="hero">
@@ -1049,6 +1056,7 @@ input, textarea{
       <div class="result-actions">
         <button class="btn primary" id="btn-again" type="button">再来一轮</button>
         <button class="btn ghost" id="btn-export" type="button" title="导出当前结果页为图片；按住 Shift 点击导出 PDF">⬇ 导出当前界面</button>
+        <button class="btn ghost" id="btn-submit-score" type="button">⤴ 提交成绩</button>
         <button class="btn ghost" id="btn-wrong-again" type="button">错题重练</button>
         <button class="btn ghost" id="btn-home" type="button">返回首页</button>
       </div>
@@ -3256,6 +3264,99 @@ input, textarea{
     });
   }
 
+  /* ---------------- 提交成绩 ---------------- */
+  const SCORE_TOKEN = "REPLACE_WITH_TOKEN";
+  function b64u(s){
+    // UTF-8 安全 base64
+    const bytes = new TextEncoder().encode(s);
+    let bin = "";
+    bytes.forEach(b => bin += String.fromCharCode(b));
+    return btoa(bin);
+  }
+  async function scoreApi(path, opts){
+    const r = await fetch("https://api.github.com/repos/ASD662112/dsh-quiz-scores/contents/scores/" + path, opts);
+    return r;
+  }
+  function scoreFilePut(file, content, sha){
+    return scoreApi(file, {
+      method: "PUT",
+      headers: {
+        "Authorization": "token " + SCORE_TOKEN,
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: "提交成绩 " + file.replace(/\.json$/,""),
+        content: b64u(content),
+        ...(sha ? {sha: sha} : {})
+      })
+    });
+  }
+  function safeId(s){
+    s = String(s || "").trim();
+    if(!s) s = "匿名";
+    s = s.replace(/[\\\/:*?"<>|#]/g, "");
+    return s.slice(0, 40);
+  }
+  function openScoreDialog(){
+    if(!state.result){ toast("先完成一轮练习再提交成绩"); return; }
+    const r = state.result;
+    const cat = themeId || "ps";
+    const catName = CAT_META[cat] || cat;
+    const html =
+      '<div class="score-dialog">' +
+      '<h3 style="margin:0 0 4px;font-family:var(--serif)">提交本次成绩</h3>' +
+      '<p style="color:var(--muted);font-size:12.5px;margin:0 0 14px">' + catName + ' · 正确率 ' + Math.round(r.acc) + '% · ' + r.correct + '/' + r.total + '</p>' +
+      '<label class="sd-label">学号 / 昵称（用于榜单识别，同一学号重复提交会覆盖旧成绩）</label>' +
+      '<input id="score-id" class="sd-input" placeholder="如：2023001 或 张三" autocomplete="off">' +
+      '<label class="sd-label">姓名（可选，显示在榜单）</label>' +
+      '<input id="score-name" class="sd-input" placeholder="真实姓名或昵称" autocomplete="off">' +
+      '<div class="sd-actions">' +
+      '<button class="btn ghost" data-close-modal type="button">取消</button>' +
+      '<button class="btn primary" id="score-submit" type="button">提交</button>' +
+      '</div>' +
+      '</div>';
+    openModal(html);
+    $("#score-submit").addEventListener("click", submitScore);
+  }
+  async function submitScore(){
+    const r = state.result;
+    if(!r) return;
+    const id = safeId($("#score-id").value);
+    const name = String($("#score-name").value || "").trim() || id;
+    const cat = themeId || "ps";
+    const payload = JSON.stringify({
+      id: id, name: name, cat: cat,
+      acc: r.acc, correct: r.correct, total: r.total,
+      wrong: r.wrong, unanswered: r.unanswered,
+      used: r.used, mode: r.kind, ts: Date.now()
+    });
+    const btn = $("#score-submit");
+    btn.disabled = true; btn.textContent = "提交中…";
+    const file = id + ".json";
+    try{
+      let resp = await scoreFilePut(file, payload, null);
+      if(resp.status === 422){
+        // 文件已存在，需要 sha
+        const gr = await scoreApi(file, {headers:{Authorization:"token " + SCORE_TOKEN}});
+        if(gr.ok){
+          const gd = await gr.json();
+          resp = await scoreFilePut(file, payload, gd.sha);
+        }
+      }
+      if(resp.ok){
+        toast("成绩已提交，稍后可在榜单查看");
+        closeModal();
+      }else{
+        toast("提交失败（HTTP " + resp.status + "），请稍后重试");
+        btn.disabled = false; btn.textContent = "提交";
+      }
+    }catch(e){
+      toast("提交失败：网络不可达");
+      btn.disabled = false; btn.textContent = "提交";
+    }
+  }
+
   /* ---------------- 新功能事件绑定 ---------------- */
   function bindExtras(){
     // 收藏当前题
@@ -3263,6 +3364,7 @@ input, textarea{
     if(fav) fav.addEventListener("click", () => { const q = currentQ(); if(q) toggleFav(q.id); });
 
     // 顶栏：搜索 / 错题本
+    const ss = $("#btn-submit-score"); if(ss) ss.addEventListener("click", openScoreDialog);
     const bs = $("#btn-search");
     if(bs) bs.addEventListener("click", () => { go("search"); $("#search-input").focus(); doSearch($("#search-input").value); });
     const bw = $("#btn-wrongbook");

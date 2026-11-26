@@ -24,6 +24,8 @@ h1{text-align:center;font-family:"Songti SC",SimSun,serif;font-size:28px;margin:
 .card p{margin:0;color:var(--ink-2);font-size:13.5px}
 .card .go{margin-top:12px;color:var(--accent);font-weight:600;font-size:14px}
 .card .go::after{content:" →"}
+.card.scorecard{border-color:var(--accent);background:linear-gradient(135deg,#FBF4EC,var(--paper-2))}
+.card.scorecard .tag{background:var(--accent);color:#fff}
 .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:40px}
 .foot a{color:var(--accent);text-decoration:none}
 </style>
@@ -46,6 +48,13 @@ h1{text-align:center;font-family:"Songti SC",SimSun,serif;font-size:28px;margin:
     <h2>练习题库（两科目 + 证书）</h2>
     <p>同上内容，练习入口略有差异，同样支持全部功能。</p>
     <div class="go">进入练习题库</div>
+  </a>
+
+  <a class="card scorecard" href="scores.html">
+    <span class="tag">🏆 成绩榜单</span>
+    <h2>查看所有人的成绩</h2>
+    <p>汇总所有同学提交的考试成绩，按正确率排行；练习后交卷即可提交成绩。</p>
+    <div class="go">查看成绩榜单</div>
   </a>
 
   <div class="foot">
