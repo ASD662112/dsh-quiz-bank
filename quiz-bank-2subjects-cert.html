@@ -22,6 +22,9 @@
 .sb-sort{border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink-2);padding:5px 10px;font-size:12.5px;outline:none;cursor:pointer}
 .sb-search{flex:0 0 auto;width:150px;border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink);padding:5px 12px;font-size:12.5px;outline:none}
 .sb-search:focus{border-color:var(--accent)}
+.sb-daterange{display:inline-flex;align-items:center;gap:6px}
+.sb-date{border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink);padding:4px 10px;font-size:12.5px;outline:none}
+.sb-date:focus{border-color:var(--accent)}
 .sb-table{width:100%;border-collapse:collapse;font-size:13.5px}
 .sb-table th,.sb-table td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line-2)}
 .sb-table th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.04em}
@@ -1158,6 +1161,19 @@ input, textarea{
           <button class="chip" data-sbm="fav" type="button">收藏</button>
           <select class="sb-sort" id="sb-sort"><option value="acc">按正确率</option><option value="ts">按提交时间</option><option value="used">按用时</option></select>
           <input class="sb-search" id="sb-q" placeholder="搜姓名 / 学号">
+        </div>
+        <div class="sb-toolbar">
+          <button class="chip active" data-sbt="all" type="button">全部时间</button>
+          <button class="chip" data-sbt="today" type="button">今天</button>
+          <button class="chip" data-sbt="7d" type="button">近7天</button>
+          <button class="chip" data-sbt="30d" type="button">近30天</button>
+          <button class="chip" data-sbt="month" type="button">本月</button>
+          <button class="chip" data-sbt="custom" type="button">自定义</button>
+          <span class="sb-daterange" id="sb-daterange" style="display:none">
+            <input type="date" id="sb-date-from" class="sb-date">
+            <span class="g-label">至</span>
+            <input type="date" id="sb-date-to" class="sb-date">
+          </span>
         </div>
         <div id="sb-list"><div class="empty-note">加载中…</div></div>
       </div>
@@ -3480,7 +3496,7 @@ input, textarea{
 
   /* ---------------- 内置只读排行榜 ---------------- */
   let sbData = [];
-  let sbFilter = {cat:"all", grade:"all", mode:"all", sort:"acc", q:""};
+  let sbFilter = {cat:"all", grade:"all", mode:"all", time:"all", from:"", to:"", sort:"acc", q:""};
   const SB_CATS = {ps:"PS平面设计", anim:"二维动画制作", design:"平面设计师与计算机网络安全"};
   function sbTime(ts){
     if(!ts) return "–";
@@ -3530,11 +3546,33 @@ input, textarea{
   function sbGradeOf(acc){
     return acc >= 80 ? "good" : acc >= 60 ? "mid" : "bad";
   }
+  function sbStartOfDay(d){ const x = new Date(d); x.setHours(0,0,0,0); return x.getTime(); }
+  function sbInTimeRange(ts){
+    if(sbFilter.time === "all") return true;
+    if(!ts) return false;
+    const now = Date.now();
+    if(sbFilter.time === "today") return ts >= sbStartOfDay(now);
+    if(sbFilter.time === "7d") return ts >= sbStartOfDay(now) - 6 * 86400000;
+    if(sbFilter.time === "30d") return ts >= sbStartOfDay(now) - 29 * 86400000;
+    if(sbFilter.time === "month"){
+      const d = new Date(now);
+      return ts >= new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+    }
+    if(sbFilter.time === "custom"){
+      const from = sbFilter.from ? new Date(sbFilter.from + "T00:00:00").getTime() : null;
+      const to = sbFilter.to ? new Date(sbFilter.to + "T23:59:59").getTime() : null;
+      if(from !== null && ts < from) return false;
+      if(to !== null && ts > to) return false;
+      return true;
+    }
+    return true;
+  }
   function sbFilteredList(){
     let list = sbData.slice();
     if(sbFilter.cat !== "all") list = list.filter(x => x.cat === sbFilter.cat);
     if(sbFilter.grade !== "all") list = list.filter(x => sbGradeOf(x.acc || 0) === sbFilter.grade);
     if(sbFilter.mode !== "all") list = list.filter(x => (x.mode || "") === sbFilter.mode);
+    list = list.filter(x => sbInTimeRange(x.ts));
     if(sbFilter.q){
       const q = sbFilter.q.toLowerCase();
       list = list.filter(x => ((x.name || "") + " " + (x.id || "")).toLowerCase().indexOf(q) !== -1);
@@ -3677,6 +3715,18 @@ input, textarea{
         renderScoreboard();
       });
     });
+    document.querySelectorAll("[data-sbt]").forEach(ch => {
+      ch.addEventListener("click", () => {
+        document.querySelectorAll("[data-sbt]").forEach(c => c.classList.remove("active"));
+        ch.classList.add("active");
+        sbFilter.time = ch.dataset.sbt;
+        const dr = $("#sb-daterange");
+        if(dr) dr.style.display = (sbFilter.time === "custom") ? "inline-flex" : "none";
+        renderScoreboard();
+      });
+    });
+    const sbdf = $("#sb-date-from"); if(sbdf) sbdf.addEventListener("change", e => { sbFilter.from = e.target.value; renderScoreboard(); });
+    const sbdt = $("#sb-date-to"); if(sbdt) sbdt.addEventListener("change", e => { sbFilter.to = e.target.value; renderScoreboard(); });
     const sbSort = $("#sb-sort"); if(sbSort) sbSort.addEventListener("change", e => { sbFilter.sort = e.target.value; renderScoreboard(); });
     const sbQ = $("#sb-q"); if(sbQ) sbQ.addEventListener("input", e => { sbFilter.q = e.target.value.trim(); renderScoreboard(); });
     const bs = $("#btn-search");

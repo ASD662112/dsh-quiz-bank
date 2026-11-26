@@ -35,6 +35,11 @@ body{margin:0;min-height:100vh;font-family:"PingFang SC","HarmonyOS Sans SC","Mi
 .search:focus{border-color:var(--accent)}
 .sort{border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink-2);
   padding:5px 10px;font-size:12.5px;outline:none;cursor:pointer}
+.date-range{display:inline-flex;align-items:center;gap:6px}
+.date-in{border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink);
+  padding:4px 10px;font-size:12.5px;outline:none}
+.date-in:focus{border-color:var(--accent)}
+.toolbar .g-label{font-size:12px;color:var(--muted);margin:0 2px}
 .manage-bar{display:none;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;background:var(--red-soft);border:1px solid var(--red);border-radius:12px}
 .manage-bar.show{display:flex}
 .manage-bar .sel-count{font-size:12.5px;color:var(--red);font-weight:600}
@@ -158,6 +163,20 @@ table{min-width:620px}
       </select>
       <input class="search" id="sb-q" placeholder="搜姓名 / 学号">
     </div>
+    <div class="toolbar">
+      <span class="g-label">时间</span>
+      <span class="chip on" data-t="all">全部时间</span>
+      <span class="chip" data-t="today">今天</span>
+      <span class="chip" data-t="7d">近7天</span>
+      <span class="chip" data-t="30d">近30天</span>
+      <span class="chip" data-t="month">本月</span>
+      <span class="chip" data-t="custom">自定义</span>
+      <span class="date-range" id="date-range" style="display:none">
+        <input type="date" id="date-from" class="date-in">
+        <span class="g-label">至</span>
+        <input type="date" id="date-to" class="date-in">
+      </span>
+    </div>
     <div class="manage-bar" id="manage-bar">
       <label style="font-size:12.5px;color:var(--red);cursor:pointer"><input type="checkbox" id="ck-all" class="ck"> 全选当前</label>
       <span class="sel-count" id="sel-count">已选 0 项</span>
@@ -191,7 +210,7 @@ table{min-width:620px}
       "m7FaIGRMY7W4bqhPSGpG";
 
   let all = [];
-  let filter = {cat:"all", grade:"all", mode:"all", sort:"acc", q:""};
+  let filter = {cat:"all", grade:"all", mode:"all", time:"all", from:"", to:"", sort:"acc", q:""};
   let manageMode = false;
   let selected = new Set();
 
@@ -228,11 +247,35 @@ table{min-width:620px}
     return acc >= 80 ? "good" : acc >= 60 ? "mid" : "bad";
   }
 
+  function startOfDay(d){ const x = new Date(d); x.setHours(0,0,0,0); return x.getTime(); }
+
+  function inTimeRange(ts){
+    if(filter.time === "all") return true;
+    if(!ts) return false;
+    const now = Date.now();
+    if(filter.time === "today") return ts >= startOfDay(now);
+    if(filter.time === "7d") return ts >= startOfDay(now) - 6 * 86400000;
+    if(filter.time === "30d") return ts >= startOfDay(now) - 29 * 86400000;
+    if(filter.time === "month"){
+      const d = new Date(now);
+      return ts >= new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+    }
+    if(filter.time === "custom"){
+      const from = filter.from ? new Date(filter.from + "T00:00:00").getTime() : null;
+      const to = filter.to ? new Date(filter.to + "T23:59:59").getTime() : null;
+      if(from !== null && ts < from) return false;
+      if(to !== null && ts > to) return false;
+      return true;
+    }
+    return true;
+  }
+
   function filteredList(){
     let list = all.slice();
     if(filter.cat !== "all") list = list.filter(x => x.cat === filter.cat);
     if(filter.grade !== "all") list = list.filter(x => gradeOf(x.acc || 0) === filter.grade);
     if(filter.mode !== "all") list = list.filter(x => (x.mode || "") === filter.mode);
+    list = list.filter(x => inTimeRange(x.ts));
     if(filter.q){
       const q = filter.q.toLowerCase();
       list = list.filter(x => ((x.name || "") + " " + (x.id || "")).toLowerCase().indexOf(q) !== -1);
@@ -508,6 +551,20 @@ table{min-width:620px}
   });
   $("#sb-sort").addEventListener("change", e => { filter.sort = e.target.value; render(); });
   $("#sb-q").addEventListener("input", e => { filter.q = e.target.value.trim(); render(); });
+  // 时间筛选
+  document.querySelectorAll('[data-t]').forEach(ch => {
+    ch.addEventListener("click", () => {
+      document.querySelectorAll('[data-t]').forEach(c => c.classList.remove("on"));
+      ch.classList.add("on");
+      filter.time = ch.dataset.t;
+      const dr = $("#date-range");
+      if(dr) dr.style.display = (filter.time === "custom") ? "inline-flex" : "none";
+      render();
+    });
+  });
+  const df = $("#date-from"), dt = $("#date-to");
+  if(df) df.addEventListener("change", e => { filter.from = e.target.value; render(); });
+  if(dt) dt.addEventListener("change", e => { filter.to = e.target.value; render(); });
   $("#btn-refresh").addEventListener("click", refresh);
 
   // 明细弹窗关闭（事件委托，兼容动态生成的按钮）
