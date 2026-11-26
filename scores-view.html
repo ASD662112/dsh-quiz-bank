@@ -183,6 +183,10 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
   const SCORES_REPO = "dsh-quiz-scores";
   const CAT_NAMES = {ps:"PS平面设计", anim:"二维动画制作", design:"平面设计师与计算机网络安全"};
   const MODE_NAMES = {exam:"模拟考试", practice:"顺序练习", wrong:"错题重练", review:"背诵模式", fav:"收藏练习"};
+  // 认证读取：未认证 GitHub API 仅 60 次/小时，会被限流导致漏数据
+  const SCORE_TOKEN = "github_pat_11BRVNSMI0bOtOhJ87OByv_" +
+      "hVVKPw8yi6X1QYDyd6ZCWOnOnkBOA7GM47Mkv47" +
+      "m7FaIGRMY7W4bqhPSGpG";
 
   let all = [];
   let filter = {cat:"all", grade:"all", mode:"all", time:"all", from:"", to:"", sort:"acc", q:""};
@@ -277,16 +281,26 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
   }
 
   async function loadScores(){
-    try{
-      return await loadFromGithub();
-    }catch(e){
-      return await loadFromJsdelivr();
+    // 双源并行抓取后合并去重：任一源缺文件都能补全
+    const results = await Promise.allSettled([loadFromGithub(), loadFromJsdelivr()]);
+    const map = new Map();
+    for(const r of results){
+      if(r.status !== "fulfilled" || !Array.isArray(r.value)) continue;
+      for(const item of r.value){
+        const key = item._file || item.id || JSON.stringify(item).slice(0, 80);
+        if(!map.has(key)) map.set(key, item);
+      }
     }
+    if(!map.size) throw new Error("no data");
+    return Array.from(map.values());
   }
 
   async function loadFromGithub(){
     const dirUrl = "https://api.github.com/repos/" + SCORES_OWNER + "/" + SCORES_REPO + "/contents/scores?t=" + Date.now();
-    const dirResp = await fetch(dirUrl, {cache:"no-store", headers:{"Accept":"application/vnd.github+json"}});
+    const dirResp = await fetch(dirUrl, {cache:"no-store", headers:{
+      "Accept":"application/vnd.github+json",
+      "Authorization":"token " + SCORE_TOKEN
+    }});
     if(!dirResp.ok) throw new Error("dir " + dirResp.status);
     const dir = await dirResp.json();
     const files = (Array.isArray(dir) ? dir : [])
@@ -298,7 +312,11 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
       try{
         const sep = url.indexOf("?") === -1 ? "?" : "&";
         const rr = await fetch(url + sep + "t=" + Date.now(), {cache:"no-store"});
-        if(rr.ok) items.push(JSON.parse(await rr.text()));
+        if(rr.ok){
+          const obj = JSON.parse(await rr.text());
+          obj._file = decodeURIComponent(url.split("/").pop().split("?")[0]);
+          items.push(obj);
+        }
       }catch(e){}
     }
     return items;
@@ -318,7 +336,11 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
       try{
         const url = "https://cdn.jsdelivr.net/gh/" + SCORES_OWNER + "/" + SCORES_REPO + "@main/scores/" + encodeURIComponent(n);
         const r = await fetch(url, {cache:"no-store"});
-        if(r.ok) items.push(JSON.parse(await r.text()));
+        if(r.ok){
+          const obj = JSON.parse(await r.text());
+          obj._file = n;
+          items.push(obj);
+        }
       }catch(e){}
     }
     return items;

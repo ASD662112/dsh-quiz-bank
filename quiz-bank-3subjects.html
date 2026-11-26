@@ -3550,46 +3550,72 @@ input, textarea{
     const p = n => String(n).padStart(2,"0");
     return d.getFullYear() + "/" + p(d.getMonth()+1) + "/" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
   }
-  async function loadScoreboard(){
-    // 优先 GitHub API，失败回退 jsDelivr CDN
-    try{
-      const dirUrl = "https://api.github.com/repos/ASD662112/dsh-quiz-scores/contents/scores?t=" + Date.now();
-      const r = await fetch(dirUrl, {cache:"no-store", headers:{"Accept":"application/vnd.github+json"}});
-      if(!r.ok) throw new Error(r.status);
-      const dir = await r.json();
-      const files = (Array.isArray(dir) ? dir : [])
-        .filter(f => f.type === "file" && /\.json$/i.test(f.name))
-        .map(f => f.download_url)
-        .filter(Boolean);
-      const items = [];
-      for(const url of files){
-        try{
-          const sep = url.indexOf("?") === -1 ? "?" : "&";
-          const rr = await fetch(url + sep + "t=" + Date.now(), {cache:"no-store"});
-          if(rr.ok) items.push(JSON.parse(await rr.text()));
-        }catch(e){}
-      }
-      return items;
-    }catch(e){
-      const listUrl = "https://data.jsdelivr.com/v1/package/gh/ASD662112/dsh-quiz-scores@main/flat";
-      const resp = await fetch(listUrl, {cache:"no-store"});
-      if(!resp.ok) throw new Error("jsdelivr " + resp.status);
-      const list = await resp.json();
-      const names = (Array.isArray(list.files) ? list.files : [])
-        .map(f => String(f.name || "").replace(/^\//, ""))
-        .filter(n => /^scores\/.+\.json$/i.test(n))
-        .map(n => n.replace(/^scores\//, ""));
-      const items = [];
-      for(const n of names){
-        try{
-          const url = "https://cdn.jsdelivr.net/gh/ASD662112/dsh-quiz-scores@main/scores/" + encodeURIComponent(n);
-          const rr = await fetch(url, {cache:"no-store"});
-          if(rr.ok) items.push(JSON.parse(await rr.text()));
-        }catch(err){}
-      }
-      return items;
+  async function sbLoadGithub(){
+    const dirUrl = "https://api.github.com/repos/ASD662112/dsh-quiz-scores/contents/scores?t=" + Date.now();
+    const r = await fetch(dirUrl, {cache:"no-store", headers:{
+      "Accept":"application/vnd.github+json",
+      "Authorization":"token " + SB_TOKEN
+    }});
+    if(!r.ok) throw new Error(r.status);
+    const dir = await r.json();
+    const files = (Array.isArray(dir) ? dir : [])
+      .filter(f => f.type === "file" && /\.json$/i.test(f.name))
+      .map(f => ({name: f.name, url: f.download_url}))
+      .filter(f => f.url);
+    const items = [];
+    for(const f of files){
+      try{
+        const sep = f.url.indexOf("?") === -1 ? "?" : "&";
+        const rr = await fetch(f.url + sep + "t=" + Date.now(), {cache:"no-store"});
+        if(rr.ok){
+          const obj = JSON.parse(await rr.text());
+          obj._file = f.name;
+          items.push(obj);
+        }
+      }catch(e){}
     }
+    return items;
   }
+  async function sbLoadJsdelivr(){
+    const listUrl = "https://data.jsdelivr.com/v1/package/gh/ASD662112/dsh-quiz-scores@main/flat";
+    const resp = await fetch(listUrl, {cache:"no-store"});
+    if(!resp.ok) throw new Error("jsdelivr " + resp.status);
+    const list = await resp.json();
+    const names = (Array.isArray(list.files) ? list.files : [])
+      .map(f => String(f.name || "").replace(/^\//, ""))
+      .filter(n => /^scores\/.+\.json$/i.test(n))
+      .map(n => n.replace(/^scores\//, ""));
+    const items = [];
+    for(const n of names){
+      try{
+        const url = "https://cdn.jsdelivr.net/gh/ASD662112/dsh-quiz-scores@main/scores/" + encodeURIComponent(n);
+        const rr = await fetch(url, {cache:"no-store"});
+        if(rr.ok){
+          const obj = JSON.parse(await rr.text());
+          obj._file = n;
+          items.push(obj);
+        }
+      }catch(err){}
+    }
+    return items;
+  }
+  async function loadScoreboard(){
+    // 双源并行抓取后合并去重：任一源缺文件都能补全
+    const results = await Promise.allSettled([sbLoadGithub(), sbLoadJsdelivr()]);
+    const map = new Map();
+    for(const r of results){
+      if(r.status !== "fulfilled" || !Array.isArray(r.value)) continue;
+      for(const item of r.value){
+        const key = item._file || item.id || JSON.stringify(item).slice(0, 80);
+        if(!map.has(key)) map.set(key, item);
+      }
+    }
+    if(!map.size) throw new Error("no data");
+    return Array.from(map.values());
+  }
+  const SB_TOKEN = "github_pat_11BRVNSMI0bOtOhJ87OByv_" +
+      "hVVKPw8yi6X1QYDyd6ZCWOnOnkBOA7GM47Mkv47" +
+      "m7FaIGRMY7W4bqhPSGpG";
   function sbGradeOf(acc){
     return acc >= 80 ? "good" : acc >= 60 ? "mid" : "bad";
   }

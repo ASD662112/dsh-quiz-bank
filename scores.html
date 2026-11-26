@@ -322,17 +322,26 @@ table{min-width:620px}
   }
 
   async function loadScores(){
-    // 优先 GitHub API（实时、带 sha），失败回退 jsDelivr CDN（国内可达）
-    try{
-      return await loadFromGithub();
-    }catch(e){
-      return await loadFromJsdelivr();
+    // 双源并行抓取后合并去重：任一源缺文件都能补全
+    const results = await Promise.allSettled([loadFromGithub(), loadFromJsdelivr()]);
+    const map = new Map();
+    for(const r of results){
+      if(r.status !== "fulfilled" || !Array.isArray(r.value)) continue;
+      for(const item of r.value){
+        const key = item._file || item.id || JSON.stringify(item).slice(0, 80);
+        if(!map.has(key)) map.set(key, item);
+      }
     }
+    if(!map.size) throw new Error("no data");
+    return Array.from(map.values());
   }
 
   async function loadFromGithub(){
     const dirUrl = "https://api.github.com/repos/" + SCORES_OWNER + "/" + SCORES_REPO + "/contents/scores?t=" + Date.now();
-    const dirResp = await fetch(dirUrl, {cache:"no-store", headers:{"Accept":"application/vnd.github+json"}});
+    const dirResp = await fetch(dirUrl, {cache:"no-store", headers:{
+      "Accept":"application/vnd.github+json",
+      "Authorization":"token " + SCORE_TOKEN
+    }});
     if(!dirResp.ok) throw new Error("dir " + dirResp.status);
     const dir = await dirResp.json();
     const files = (Array.isArray(dir) ? dir : [])
@@ -352,7 +361,6 @@ table{min-width:620px}
     }
     return items;
   }
-
   async function loadFromJsdelivr(){
     const listUrl = "https://data.jsdelivr.com/v1/package/gh/" + SCORES_OWNER + "/" + SCORES_REPO + "@main/flat";
     const resp = await fetch(listUrl, {cache:"no-store"});
