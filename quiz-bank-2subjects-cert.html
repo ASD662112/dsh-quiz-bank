@@ -8,6 +8,36 @@
 <link rel="icon" type="image/svg+xml" sizes="any" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgdmlld0JveD0iMCAwIDY0IDY0IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IuW5s+mdouiuvuiuoeW4iOWkjeS5oOmimOW6kyI+CiAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMxNzE4MUMiLz4KICA8ZyBmaWxsPSJub25lIiBzdHJva2U9IiNGNUVGRTMiIHN0cm9rZS13aWR0aD0iMy42IiBzdHJva2UtbGluZWNhcD0icm91bmQiPgogICAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMTYuNSIvPgogICAgPHBhdGggZD0iTTMyIDQuNXY3LjVNMzIgNTJ2Ny41TTQuNSAzMkgxMk01MiAzMmg3LjUiLz4KICA8L2c+CiAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iNi40IiBmaWxsPSIjQzk0NTFFIi8+Cjwvc3ZnPgo=">
 <meta name="theme-color" content="#F3EFE5">
 <style>
+/* 内置只读排行榜 */
+.sb-main{max-width:960px;margin:0 auto;padding:26px 20px 90px}
+.sb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+.sb-stat{background:var(--paper-2);border:1px solid var(--line-2);border-radius:12px;padding:14px 16px}
+.sb-stat b{display:block;font-family:var(--serif);font-size:26px;line-height:1.1}
+.sb-stat span{font-size:12px;color:var(--muted)}
+.sb-panel{background:var(--paper-2);border:1px solid var(--line-2);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow)}
+.sb-panel h2{font-size:16px;margin:0 0 14px;font-family:var(--serif)}
+.sb-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 16px}
+.sb-toolbar .refresh{margin-left:auto;color:var(--accent);cursor:pointer;font-size:12.5px;background:none;border:0}
+.sb-table{width:100%;border-collapse:collapse;font-size:13.5px}
+.sb-table th,.sb-table td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line-2)}
+.sb-table th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.04em}
+.sb-table tr:last-child td{border-bottom:0}
+.sb-table td.rank{font-family:var(--serif);font-weight:700;font-size:16px;width:52px}
+.sb-table tr.top1 td.rank{color:var(--accent)}
+.sb-table tr.top2 td.rank{color:#8A6D3B}
+.sb-table tr.top3 td.rank{color:#7A756B}
+.sb-table td.score{font-weight:700;font-family:var(--serif);font-size:17px}
+.sb-bar{display:flex;align-items:center;gap:8px}
+.sb-bar .tr{flex:1;height:8px;border-radius:99px;background:var(--line-2);overflow:hidden}
+.sb-bar .tr i{display:block;height:100%;border-radius:99px;background:var(--accent)}
+.sb-bar .tr.good i{background:var(--green)}.sb-bar .tr.mid i{background:var(--accent)}.sb-bar .tr.bad i{background:var(--red)}
+.sb-bar .pct{width:48px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12.5px}
+.sb-badge{display:inline-block;font-size:10.5px;padding:2px 8px;border-radius:99px;margin-left:6px;vertical-align:1px}
+.sb-badge.good{background:var(--green-soft);color:var(--green)}
+.sb-badge.mid{background:var(--accent-soft);color:var(--accent)}
+.sb-badge.bad{background:var(--red-soft);color:var(--red)}
+.sb-manage-hint{margin:0 0 16px;padding:10px 14px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;font-size:12.5px;color:var(--accent-2)}
+.sb-manage-hint a{color:var(--accent);font-weight:600}
 /* 提交成绩弹窗 */
 .score-dialog{min-width:min(400px,78vw)}
 .sd-label{display:block;font-size:12px;color:var(--muted);margin:12px 0 6px}
@@ -873,7 +903,7 @@ input, textarea{
     <div class="home">
       <div class="masthead">
         <span><b id="brand-short">PS</b> / <span id="brand-name">课程题库</span></span>
-        <span class="masthead-right"><span class="masthead-tag">数字媒体 3+2 · 转段考试</span><span class="hometools"><button class="toolbtn" id="btn-stats" type="button"><span class="ico">▤</span>学习统计</button><button class="toolbtn" id="btn-dark" type="button"><span class="ico">☾</span>夜间</button><button class="toolbtn" id="btn-font" type="button"><span class="ico">A</span>字号</button><button class="toolbtn" id="btn-search" type="button"><span class="ico">⌕</span>搜索</button><button class="toolbtn" id="btn-wrongbook" type="button"><span class="ico">✎</span>错题本</button><a class="toolbtn" id="btn-scoreboard" href="scores.html" style="text-decoration:none" type="button"><span class="ico">🏆</span>成绩榜单</a><button class="link-btn" id="btn-switch-theme" type="button">切换主题</button></span></span>
+        <span class="masthead-right"><span class="masthead-tag">数字媒体 3+2 · 转段考试</span><span class="hometools"><button class="toolbtn" id="btn-stats" type="button"><span class="ico">▤</span>学习统计</button><button class="toolbtn" id="btn-dark" type="button"><span class="ico">☾</span>夜间</button><button class="toolbtn" id="btn-font" type="button"><span class="ico">A</span>字号</button><button class="toolbtn" id="btn-search" type="button"><span class="ico">⌕</span>搜索</button><button class="toolbtn" id="btn-wrongbook" type="button"><span class="ico">✎</span>错题本</button><button class="toolbtn" id="btn-scoreboard" type="button"><span class="ico">🏆</span>成绩榜单</button><button class="link-btn" id="btn-switch-theme" type="button">切换主题</button></span></span>
       </div>
 
       <header class="hero">
@@ -1061,6 +1091,32 @@ input, textarea{
         <button class="btn ghost" id="btn-home" type="button">返回首页</button>
       </div>
     </div>
+  </section>
+
+  <!-- ================= SCOREBOARD（只读排行榜） ================= -->
+  <section class="view" id="view-scoreboard" hidden>
+    <header class="qbar">
+      <div class="qbar-in">
+        <button class="icon-btn" id="btn-sb-back" aria-label="返回首页" type="button">←</button>
+        <div class="qbar-titles"><b>成绩榜单</b><span id="sb-sub">所有人提交的成绩 · 只读</span></div>
+        <div class="qbar-right"><a class="btn tiny" href="scores.html" target="_blank" rel="noopener">管理页打开 →</a></div>
+      </div>
+    </header>
+    <main class="sb-main">
+      <p class="sb-manage-hint">本页只读。要删除或管理成绩，请到 <a href="scores.html" target="_blank" rel="noopener">成绩榜单管理页 →</a></p>
+      <div class="sb-grid" id="sb-grid"></div>
+      <div class="sb-panel">
+        <h2>排行榜</h2>
+        <div class="sb-toolbar">
+          <button class="chip active" data-sbk="all" type="button">全部</button>
+          <button class="chip" data-sbk="ps" type="button">PS平面设计</button>
+          <button class="chip" data-sbk="anim" type="button">二维动画制作</button>
+          <button class="chip" data-sbk="design" type="button">网络安全/平面设计</button>
+          <button class="refresh" id="btn-sb-refresh" type="button">⟳ 刷新</button>
+        </div>
+        <div id="sb-list"><div class="empty-note">加载中…</div></div>
+      </div>
+    </main>
   </section>
 
   <!-- ================= SEARCH ================= -->
@@ -1794,7 +1850,7 @@ input, textarea{
   }
   function go(view){
     state.view = view;
-    ["themes","home","quiz","result","answers","stats","search","wrongbook","review"].forEach(v => {
+    ["themes","home","quiz","result","answers","stats","search","wrongbook","review","scoreboard"].forEach(v => {
       document.getElementById("view-" + v).hidden = (v !== view);
     });
     if(view === "themes") document.title = "数字媒体 · 三科题库";
@@ -3350,6 +3406,94 @@ input, textarea{
     }
   }
 
+  /* ---------------- 内置只读排行榜 ---------------- */
+  let sbData = [];
+  let sbFilter = "all";
+  const SB_CATS = {ps:"PS平面设计", anim:"二维动画制作", design:"平面设计师与计算机网络安全"};
+  function sbTime(ts){
+    if(!ts) return "–";
+    const d = new Date(ts);
+    const p = n => String(n).padStart(2,"0");
+    return d.getFullYear() + "/" + p(d.getMonth()+1) + "/" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  async function loadScoreboard(){
+    const dirUrl = "https://api.github.com/repos/ASD662112/dsh-quiz-scores/contents/scores?t=" + Date.now();
+    const r = await fetch(dirUrl, {cache:"no-store", headers:{"Accept":"application/vnd.github+json"}});
+    if(!r.ok) throw new Error(r.status);
+    const dir = await r.json();
+    const files = (Array.isArray(dir) ? dir : [])
+      .filter(f => f.type === "file" && /\.json$/i.test(f.name))
+      .map(f => f.download_url)
+      .filter(Boolean);
+    const items = [];
+    for(const url of files){
+      try{
+        const sep = url.indexOf("?") === -1 ? "?" : "&";
+        const rr = await fetch(url + sep + "t=" + Date.now(), {cache:"no-store"});
+        if(rr.ok) items.push(JSON.parse(await rr.text()));
+      }catch(e){}
+    }
+    return items;
+  }
+  function renderScoreboard(){
+    const list = sbFilter === "all" ? sbData : sbData.filter(x => x.cat === sbFilter);
+    $("#sb-sub").textContent = "所有人提交的成绩 · 只读 · 共 " + list.length + " 人";
+    // 统计
+    const grid = $("#sb-grid");
+    if(list.length){
+      const accs = list.map(x => x.acc).filter(v => typeof v === "number");
+      const avg = accs.length ? Math.round(accs.reduce((a,b)=>a+b,0) / accs.length * 10) / 10 : 0;
+      const best = Math.max.apply(null, accs);
+      const latest = Math.max.apply(null, list.map(x => x.ts || 0));
+      grid.innerHTML =
+        '<div class="sb-stat"><b>' + list.length + '</b><span>提交人数</span></div>' +
+        '<div class="sb-stat"><b>' + avg + '%</b><span>平均正确率</span></div>' +
+        '<div class="sb-stat"><b>' + best + '%</b><span>最高分</span></div>' +
+        '<div class="sb-stat"><b>' + sbTime(latest) + '</b><span>最近提交</span></div>';
+    }else{
+      grid.innerHTML =
+        '<div class="sb-stat"><b>0</b><span>提交人数</span></div>' +
+        '<div class="sb-stat"><b>–</b><span>平均正确率</span></div>' +
+        '<div class="sb-stat"><b>–</b><span>最高分</span></div>' +
+        '<div class="sb-stat"><b>–</b><span>最近提交</span></div>';
+    }
+    // 表格
+    const sorted = list.slice().sort((a,b) => (b.acc||0) - (a.acc||0));
+    if(!sorted.length){
+      $("#sb-list").innerHTML = '<div class="empty-note">还没有人提交成绩。</div>';
+      return;
+    }
+    const maxAcc = Math.max.apply(null, sorted.map(x => x.acc || 0)) || 100;
+    const rows = sorted.map((x, i) => {
+      const acc = Math.round(x.acc || 0);
+      const cls = acc >= 80 ? "good" : acc >= 60 ? "mid" : "bad";
+      const badgeTxt = acc >= 80 ? "优秀" : acc >= 60 ? "合格" : "待提升";
+      const rankCls = i === 0 ? "top1" : i === 1 ? "top2" : i === 2 ? "top3" : "";
+      const pct = Math.max(0, Math.min(100, acc));
+      const pctW = Math.max(4, pct / maxAcc * 100);
+      return '<tr class="' + rankCls + '">' +
+        '<td class="rank">' + (i + 1) + '</td>' +
+        '<td>' + (x.name || "匿名") + '<span class="sb-badge ' + cls + '">' + badgeTxt + '</span></td>' +
+        '<td>' + (SB_CATS[x.cat] || x.cat || "–") + '</td>' +
+        '<td class="score">' + acc + '%</td>' +
+        '<td><div class="sb-bar"><div class="tr ' + cls + '"><i style="width:' + pctW + '%"></i></div><span class="pct">' + x.correct + '/' + x.total + '</span></div></td>' +
+        '<td>' + sbTime(x.ts) + '</td>' +
+        '</tr>';
+    }).join("");
+    $("#sb-list").innerHTML =
+      '<table class="sb-table"><thead><tr><th>名次</th><th>姓名</th><th>科目</th><th>正确率</th><th>答题情况</th><th>提交时间</th></tr></thead><tbody>' +
+      rows + '</tbody></table>';
+  }
+  async function refreshScoreboard(){
+    $("#sb-list").innerHTML = '<div class="empty-note">加载中…</div>';
+    try{
+      sbData = await loadScoreboard();
+      renderScoreboard();
+    }catch(e){
+      $("#sb-list").innerHTML = '<div class="empty-note">加载失败，请稍后重试。</div>';
+    }
+  }
+
   /* ---------------- 新功能事件绑定 ---------------- */
   function bindExtras(){
     // 收藏当前题
@@ -3358,6 +3502,18 @@ input, textarea{
 
     // 顶栏：搜索 / 错题本
     const ss = $("#btn-submit-score"); if(ss) ss.addEventListener("click", openScoreDialog);
+    const sbBtn = $("#btn-scoreboard");
+    if(sbBtn) sbBtn.addEventListener("click", () => { go("scoreboard"); refreshScoreboard(); });
+    const sbb = $("#btn-sb-back"); if(sbb) sbb.addEventListener("click", () => go("home"));
+    const sbr = $("#btn-sb-refresh"); if(sbr) sbr.addEventListener("click", refreshScoreboard);
+    document.querySelectorAll(".sb-toolbar .chip").forEach(ch => {
+      ch.addEventListener("click", () => {
+        document.querySelectorAll(".sb-toolbar .chip").forEach(c => c.classList.remove("active"));
+        ch.classList.add("active");
+        sbFilter = ch.dataset.sbk;
+        renderScoreboard();
+      });
+    });
     const bs = $("#btn-search");
     if(bs) bs.addEventListener("click", () => { go("search"); $("#search-input").focus(); doSearch($("#search-input").value); });
     const bw = $("#btn-wrongbook");
