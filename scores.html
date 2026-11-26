@@ -64,6 +64,26 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
 .ck{width:16px;height:16px;cursor:pointer;accent-color:var(--accent)}
 .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99}
 .toast.show{opacity:1}
+.modal{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center}
+.modal.show{display:flex}
+.modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.modal-card{position:relative;background:var(--paper-2);border:1px solid var(--line);border-radius:18px;padding:22px 24px;max-width:680px;width:calc(100% - 40px);max-height:78vh;overflow:auto;box-shadow:0 24px 60px -24px rgba(0,0,0,.5)}
+.score-detail{min-width:0}
+.sd-group{margin:10px 0}
+.sd-group-h{font-size:12.5px;font-weight:700;padding:4px 0;margin-bottom:6px;border-bottom:1px solid var(--line-2)}
+.sd-group-h.good{color:var(--green)}
+.sd-group-h.bad{color:var(--red)}
+.sd-group-h.miss{color:var(--muted)}
+.sd-item{background:var(--paper-3);border:1px solid var(--line-2);border-radius:10px;padding:9px 12px;margin:6px 0}
+.sd-q{font-size:13px;color:var(--ink);line-height:1.5}
+.sd-a{font-size:12px;color:var(--muted);margin-top:4px}
+.sd-a b.ok{color:var(--green)}
+.sd-a b.bad{color:var(--red)}
+.sd-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
+.sd-actions .btn{padding:7px 16px;border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink-2);cursor:pointer;font-size:13px}
+.clickable{cursor:pointer}
+.clickable:hover td{background:var(--paper-3)}
+
 </style>
 </head>
 <body>
@@ -112,6 +132,11 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
 
 <div class="toast" id="toast"></div>
 
+<div class="modal" id="modal">
+  <div class="modal-backdrop" data-close-modal></div>
+  <div class="modal-card" id="modal-card" role="dialog" aria-modal="true"></div>
+</div>
+
 <script>
 (function(){
   "use strict";
@@ -141,6 +166,47 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
     const d = new Date(ts);
     const p = n => String(n).padStart(2,"0");
     return d.getFullYear() + "/" + p(d.getMonth()+1) + "/" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+
+  function fmtDur(s){
+    if(s == null || s === "") return "–";
+    s = Math.round(s);
+    const m = Math.floor(s / 60), ss = s % 60;
+    return (m > 0 ? m + "分" : "") + ss + "秒";
+  }
+
+  function typeLabel(t){
+    return {single:"单选", multi:"多选", judge:"判断", fill:"填空", short:"简答"}[t] || t;
+  }
+
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+  function showDetail(x){
+    const detail = Array.isArray(x.detail) ? x.detail : [];
+    const okList = detail.filter(d => d.sub && d.ok);
+    const badList = detail.filter(d => d.sub && !d.ok);
+    const missList = detail.filter(d => !d.sub);
+    function group(list, cls, tag){
+      if(!list.length) return "";
+      return '<div class="sd-group"><div class="sd-group-h ' + cls + '">' + tag + '（' + list.length + '）</div>' +
+        list.map(d =>
+          '<div class="sd-item"><div class="sd-q">' + String(d.no).padStart(2,"0") + '. ' + esc(d.q) + '</div>' +
+          '<div class="sd-a"><span>你的答案：</span><b class="' + (d.ok ? "ok" : "bad") + '">' + esc(d.your || "未作答") + '</b></div>' +
+          '<div class="sd-a"><span>正确答案：</span><b class="ok">' + esc(d.ans || "–") + '</b></div></div>'
+        ).join("") + '</div>';
+    }
+    const html =
+      '<div class="score-detail">' +
+      '<h3 style="margin:0 0 2px;font-family:"Songti SC",serif">' + esc(x.name || "匿名") + '</h3>' +
+      '<p style="color:var(--muted);font-size:12.5px;margin:0 0 12px">' +
+        (CAT_NAMES[x.cat] || x.cat || "–") + ' · 正确率 ' + Math.round(x.acc || 0) + '% · ' +
+        (x.correct ?? "–") + '/' + (x.total ?? "–") + ' · 用时 ' + fmtDur(x.used) + ' · ' + fmtTime(x.ts) + '</p>' +
+      (detail.length ? group(okList, "good", "答对") + group(badList, "bad", "答错") + group(missList, "miss", "未作答") :
+        '<p class="empty">暂无答题明细（旧数据）。</p>') +
+      '<div class="sd-actions"><button class="btn" data-close-modal type="button">关闭</button></div>' +
+      '</div>';
+    $("#modal-card").innerHTML = html;
+    $("#modal").classList.add("show");
   }
 
   async function fetchText(url){
@@ -227,20 +293,21 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
       const ck = manageMode
         ? '<td style="width:32px"><input type="checkbox" class="ck row-ck" data-file="' + (x._file||"") + '"' + (selected.has(x._file) ? " checked" : "") + '></td>'
         : '';
-      return '<tr class="' + rankCls + '">' +
+      return '<tr class="' + rankCls + ' clickable" data-idx="' + i + '">' +
         ck +
         '<td class="rank">' + (i + 1) + '</td>' +
         '<td>' + (x.name || "匿名") + '<span class="badge ' + badge + '">' + badgeTxt + '</span></td>' +
         '<td>' + (CAT_NAMES[x.cat] || x.cat || "–") + '</td>' +
         '<td class="score">' + acc + '%</td>' +
         '<td><div class="bar-cell"><div class="bar ' + cls + '"><i style="width:' + pctW + '%"></i></div><span class="pct">' + x.correct + '/' + x.total + '</span></div></td>' +
+        '<td>' + fmtDur(x.used) + '</td>' +
         '<td>' + fmtTime(x.ts) + '</td>' +
         '</tr>';
     }).join("");
 
     const head = manageMode
-      ? '<tr><th style="width:32px"><input type="checkbox" id="ck-all-inline" class="ck"></th><th>名次</th><th>姓名</th><th>科目</th><th>正确率</th><th>答题情况</th><th>提交时间</th></tr>'
-      : '<tr><th>名次</th><th>姓名</th><th>科目</th><th>正确率</th><th>答题情况</th><th>提交时间</th></tr>';
+      ? '<tr><th style="width:32px"><input type="checkbox" id="ck-all-inline" class="ck"></th><th>名次</th><th>姓名</th><th>科目</th><th>正确率</th><th>答题情况</th><th>用时</th><th>提交时间</th></tr>'
+      : '<tr><th>名次</th><th>姓名</th><th>科目</th><th>正确率</th><th>答题情况</th><th>用时</th><th>提交时间</th></tr>';
 
     $("#rank-list").innerHTML = '<table><thead>' + head + '</thead><tbody>' + rows + '</tbody></table>';
 
@@ -262,6 +329,15 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
       });
       if(allCk) allCk.checked = sorted.length > 0 && sorted.every(x => selected.has(x._file));
     }
+
+    // 行点击查看答题明细
+    document.querySelectorAll(".clickable").forEach(tr => {
+      tr.addEventListener("click", () => {
+        const idx = Number(tr.dataset.idx);
+        if(!isNaN(idx) && sorted[idx]) showDetail(sorted[idx]);
+      });
+    });
+
     syncSelBar();
   }
 
@@ -321,6 +397,14 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
     });
   });
   $("#btn-refresh").addEventListener("click", refresh);
+
+  // 明细弹窗关闭
+  document.querySelectorAll("[data-close-modal]").forEach(el => {
+    el.addEventListener("click", () => $("#modal").classList.remove("show"));
+  });
+  document.addEventListener("keydown", e => {
+    if(e.key === "Escape") $("#modal").classList.remove("show");
+  });
 
   // 管理模式开关
   $("#btn-manage").addEventListener("click", () => {

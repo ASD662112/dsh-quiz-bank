@@ -38,6 +38,18 @@
 .sb-badge.bad{background:var(--red-soft);color:var(--red)}
 .sb-manage-hint{margin:0 0 16px;padding:10px 14px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;font-size:12.5px;color:var(--accent-2)}
 .sb-manage-hint a{color:var(--accent);font-weight:600}
+/* 答题明细 */
+.score-detail{min-width:min(560px,86vw);max-height:72vh;overflow:auto}
+.sd-group{margin:10px 0}
+.sd-group-h{font-size:12.5px;font-weight:700;padding:4px 0;margin-bottom:6px;border-bottom:1px solid var(--line-2)}
+.sd-group-h.good{color:var(--green)}
+.sd-group-h.bad{color:var(--red)}
+.sd-group-h.miss{color:var(--muted)}
+.sd-item{background:var(--paper-3);border:1px solid var(--line-2);border-radius:10px;padding:9px 12px;margin:6px 0}
+.sd-q{font-size:13px;color:var(--ink);line-height:1.5}
+.sd-a{font-size:12px;color:var(--muted);margin-top:4px}
+.sd-a b.ok{color:var(--green)}
+.sd-a b.bad{color:var(--red)}
 /* 提交成绩弹窗 */
 .score-dialog{min-width:min(400px,78vw)}
 .sd-label{display:block;font-size:12px;color:var(--muted);margin:12px 0 6px}
@@ -3351,6 +3363,32 @@ input, textarea{
   const SCORE_TOKEN = "github_pat_11BRVNSMI0bOtOhJ87OByv_" +
     "hVVKPw8yi6X1QYDyd6ZCWOnOnkBOA7GM47Mkv47" +
     "m7FaIGRMY7W4bqhPSGpG";
+  function detailText(q, a){
+    if(q.type === "fill") return fillPlainText(q, a);
+    if(q.type === "short") return (a && typeof a.text === "string") ? a.text.trim() : "未作答";
+    return answerText(q, a && a.sel);
+  }
+  function correctDetailText(q){
+    if(q.type === "fill") return (q.answers || []).join(" / ");
+    if(q.type === "short") return q.refAnswer || "";
+    return answerText(q, q.answer);
+  }
+  function buildDetail(){
+    return state.queue.map(q => {
+      const a = state.answers[q.id];
+      const submitted = !!(a && a.submitted);
+      const ok = !!(submitted && a.correct);
+      return {
+        no: q.no,
+        type: q.type,
+        q: q.question,
+        your: detailText(q, a),
+        ans: correctDetailText(q),
+        ok: ok,
+        sub: submitted
+      };
+    });
+  }
   function putScoreFile(file, content, sha){
     return fetch("https://api.github.com/repos/ASD662112/dsh-quiz-scores/contents/scores/" + file, {
       method: "PUT",
@@ -3376,7 +3414,8 @@ input, textarea{
       id: id, name: name, cat: cat,
       acc: r.acc, correct: r.correct, total: r.total,
       wrong: r.wrong, unanswered: r.unanswered,
-      used: r.used, mode: r.kind, ts: Date.now()
+      used: r.used, mode: r.kind, ts: Date.now(),
+      detail: buildDetail()
     });
     const file = id + ".json";
     const btn = $("#score-submit");
@@ -3435,6 +3474,42 @@ input, textarea{
     }
     return items;
   }
+  function sbDur(s){
+    if(s == null || s === "") return "–";
+    s = Math.round(s);
+    const m = Math.floor(s / 60), ss = s % 60;
+    return (m > 0 ? m + "分" : "") + ss + "秒";
+  }
+  function sbTypeLabel(t){
+    const map = {single:"单选", multi:"多选", judge:"判断", fill:"填空", short:"简答"};
+    return map[t] || t;
+  }
+  function showScoreDetail(x){
+    const detail = Array.isArray(x.detail) ? x.detail : [];
+    const okList = detail.filter(d => d.sub && d.ok);
+    const badList = detail.filter(d => d.sub && !d.ok);
+    const missList = detail.filter(d => !d.sub);
+    function items(list, cls, tag){
+      if(!list.length) return "";
+      return '<div class="sd-group"><div class="sd-group-h ' + cls + '">' + tag + '（' + list.length + '）</div>' +
+        list.map(d =>
+          '<div class="sd-item"><div class="sd-q">' + String(d.no).padStart(2,"0") + '. ' + escapeHtml(d.q) + '</div>' +
+          '<div class="sd-a"><span>你的答案：</span><b class="' + (d.ok ? 'ok' : 'bad') + '">' + escapeHtml(d.your || "未作答") + '</b></div>' +
+          '<div class="sd-a"><span>正确答案：</span><b class="ok">' + escapeHtml(d.ans || "–") + '</b></div></div>'
+        ).join("") + '</div>';
+    }
+    const html =
+      '<div class="score-detail">' +
+      '<h3 style="margin:0 0 2px;font-family:var(--serif)">' + escapeHtml(x.name || "匿名") + '</h3>' +
+      '<p style="color:var(--muted);font-size:12.5px;margin:0 0 12px">' +
+        (SB_CATS[x.cat] || x.cat || "–") + ' · 正确率 ' + Math.round(x.acc || 0) + '% · ' +
+        (x.correct ?? "–") + '/' + (x.total ?? "–") + ' · 用时 ' + sbDur(x.used) + ' · ' + sbTime(x.ts) + '</p>' +
+      (detail.length ? items(okList, "good", "答对") + items(badList, "bad", "答错") + items(missList, "miss", "未作答") :
+        '<p class="empty-note">暂无答题明细（旧数据）。</p>') +
+      '<div class="sd-actions"><button class="btn ghost" data-close-modal type="button">关闭</button></div>' +
+      '</div>';
+    openModal(html);
+  }
   function renderScoreboard(){
     const list = sbFilter === "all" ? sbData : sbData.filter(x => x.cat === sbFilter);
     $("#sb-sub").textContent = "所有人提交的成绩 · 只读 · 共 " + list.length + " 人";
@@ -3471,17 +3546,18 @@ input, textarea{
       const rankCls = i === 0 ? "top1" : i === 1 ? "top2" : i === 2 ? "top3" : "";
       const pct = Math.max(0, Math.min(100, acc));
       const pctW = Math.max(4, pct / maxAcc * 100);
-      return '<tr class="' + rankCls + '">' +
+      return '<tr class="' + rankCls + '" data-sbi="' + i + '" style="cursor:pointer">' +
         '<td class="rank">' + (i + 1) + '</td>' +
         '<td>' + (x.name || "匿名") + '<span class="sb-badge ' + cls + '">' + badgeTxt + '</span></td>' +
         '<td>' + (SB_CATS[x.cat] || x.cat || "–") + '</td>' +
         '<td class="score">' + acc + '%</td>' +
         '<td><div class="sb-bar"><div class="tr ' + cls + '"><i style="width:' + pctW + '%"></i></div><span class="pct">' + x.correct + '/' + x.total + '</span></div></td>' +
+        '<td>' + sbDur(x.used) + '</td>' +
         '<td>' + sbTime(x.ts) + '</td>' +
         '</tr>';
     }).join("");
     $("#sb-list").innerHTML =
-      '<table class="sb-table"><thead><tr><th>名次</th><th>姓名</th><th>科目</th><th>正确率</th><th>答题情况</th><th>提交时间</th></tr></thead><tbody>' +
+      '<table class="sb-table"><thead><tr><th>名次</th><th>姓名</th><th>科目</th><th>正确率</th><th>答题情况</th><th>用时</th><th>提交时间</th></tr></thead><tbody>' +
       rows + '</tbody></table>';
   }
   async function refreshScoreboard(){
@@ -3506,6 +3582,7 @@ input, textarea{
     if(sbBtn) sbBtn.addEventListener("click", () => { go("scoreboard"); refreshScoreboard(); });
     const sbb = $("#btn-sb-back"); if(sbb) sbb.addEventListener("click", () => go("home"));
     const sbr = $("#btn-sb-refresh"); if(sbr) sbr.addEventListener("click", refreshScoreboard);
+    const sbl = $("#sb-list"); if(sbl) sbl.addEventListener("click", e => { const tr = e.target.closest("[data-sbi]"); if(tr) showScoreDetail(sbData[Number(tr.dataset.sbi)]); });
     document.querySelectorAll(".sb-toolbar .chip").forEach(ch => {
       ch.addEventListener("click", () => {
         document.querySelectorAll(".sb-toolbar .chip").forEach(c => c.classList.remove("active"));
