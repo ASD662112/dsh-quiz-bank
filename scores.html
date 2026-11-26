@@ -390,11 +390,10 @@ input,textarea,select,[contenteditable="true"],.allow-select,
   }
 
   async function loadScores(){
-    // 优先 GitHub 实时源（带 sha，可删除且删除后立即一致）；失败才回退 jsDelivr
+    // 优先 GitHub 实时源：成功即返回（哪怕空数组，表示已全部删除）
+    // 只有请求真正失败才回退 jsDelivr CDN
     try{
-      const gh = await loadFromGithub();
-      if(gh && gh.length) return gh;
-      throw new Error("github empty");
+      return await loadFromGithub();
     }catch(e){
       return await loadFromJsdelivr();
     }
