@@ -13,7 +13,7 @@
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;font-family:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
   color:var(--ink);line-height:1.65;background:var(--paper)}
-.wrap{max-width:960px;margin:0 auto;padding:34px 20px 90px}
+.wrap{max-width:1000px;margin:0 auto;padding:34px 20px 90px}
 .head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
 .head h1{font-family:"Songti SC",STSong,SimSun,serif;font-size:26px;margin:0}
 .head .sub{color:var(--muted);font-size:13px;margin:4px 0 0}
@@ -21,11 +21,17 @@ body{margin:0;min-height:100vh;font-family:"PingFang SC","HarmonyOS Sans SC","Mi
 .head a:hover{border-bottom-color:var(--accent)}
 .panel{background:var(--paper-2);border:1px solid var(--line-2);border-radius:16px;padding:18px 20px;margin:16px 0;box-shadow:var(--shadow)}
 .panel h2{font-size:16px;margin:0 0 14px;font-family:"Songti SC",STSong,SimSun,serif}
-.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 16px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
 .toolbar .chip{padding:5px 13px;border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink-2);
-  cursor:pointer;font-size:12.5px}
+  cursor:pointer;font-size:12.5px;user-select:none}
 .toolbar .chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.toolbar .g-label{font-size:12px;color:var(--muted);margin:0 2px}
 .toolbar .refresh{margin-left:auto;color:var(--accent);cursor:pointer;font-size:12.5px;background:none;border:0}
+.search{flex:0 0 auto;width:150px;border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink);
+  padding:5px 12px;font-size:12.5px;outline:none}
+.search:focus{border-color:var(--accent)}
+.sort{border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink-2);
+  padding:5px 10px;font-size:12.5px;outline:none;cursor:pointer}
 #rank-list{overflow-x:auto;-webkit-overflow-scrolling:touch}
 table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:620px}
 th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line-2)}
@@ -81,6 +87,7 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
   .panel{padding:14px 12px}
   .toolbar{gap:6px}
   .toolbar .chip{padding:4px 10px;font-size:11.5px}
+  .search{width:130px}
   table{min-width:560px;font-size:12.5px}
   th,td{padding:8px 6px}
   .modal-card{width:calc(100% - 20px);padding:18px 14px}
@@ -107,11 +114,35 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
   <div class="panel">
     <h2>排行榜</h2>
     <div class="toolbar">
+      <span class="g-label">科目</span>
       <span class="chip on" data-k="all">全部</span>
       <span class="chip" data-k="ps">PS平面设计</span>
       <span class="chip" data-k="anim">二维动画制作</span>
       <span class="chip" data-k="design">网络安全/平面设计</span>
       <button class="refresh" id="btn-refresh" type="button">⟳ 刷新</button>
+    </div>
+    <div class="toolbar">
+      <span class="g-label">等级</span>
+      <span class="chip on" data-g="all">全部</span>
+      <span class="chip" data-g="good">优秀 ≥80%</span>
+      <span class="chip" data-g="mid">合格 60–79%</span>
+      <span class="chip" data-g="bad">待提升 &lt;60%</span>
+    </div>
+    <div class="toolbar">
+      <span class="g-label">模式</span>
+      <span class="chip on" data-m="all">全部</span>
+      <span class="chip" data-m="exam">模拟考试</span>
+      <span class="chip" data-m="practice">顺序练习</span>
+      <span class="chip" data-m="wrong">错题重练</span>
+      <span class="chip" data-m="review">背诵</span>
+      <span class="chip" data-m="fav">收藏</span>
+      <span class="g-label" style="margin-left:6px">排序</span>
+      <select class="sort" id="sb-sort">
+        <option value="acc">按正确率</option>
+        <option value="ts">按提交时间</option>
+        <option value="used">按用时</option>
+      </select>
+      <input class="search" id="sb-q" placeholder="搜姓名 / 学号">
     </div>
     <div id="rank-list"><div class="loading">加载中…</div></div>
   </div>
@@ -133,9 +164,10 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
   const SCORES_OWNER = "ASD662112";
   const SCORES_REPO = "dsh-quiz-scores";
   const CAT_NAMES = {ps:"PS平面设计", anim:"二维动画制作", design:"平面设计师与计算机网络安全"};
+  const MODE_NAMES = {exam:"模拟考试", practice:"顺序练习", wrong:"错题重练", review:"背诵模式", fav:"收藏练习"};
 
   let all = [];
-  let filter = "all";
+  let filter = {cat:"all", grade:"all", mode:"all", sort:"acc", q:""};
 
   function $(s){ return document.querySelector(s); }
 
@@ -155,6 +187,26 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
 
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
+  function gradeOf(acc){
+    return acc >= 80 ? "good" : acc >= 60 ? "mid" : "bad";
+  }
+
+  function filteredList(){
+    let list = all.slice();
+    if(filter.cat !== "all") list = list.filter(x => x.cat === filter.cat);
+    if(filter.grade !== "all") list = list.filter(x => gradeOf(x.acc || 0) === filter.grade);
+    if(filter.mode !== "all") list = list.filter(x => (x.mode || "") === filter.mode);
+    if(filter.q){
+      const q = filter.q.toLowerCase();
+      list = list.filter(x => ((x.name || "") + " " + (x.id || "")).toLowerCase().indexOf(q) !== -1);
+    }
+    const sort = filter.sort;
+    if(sort === "ts") list.sort((a,b) => (b.ts||0) - (a.ts||0));
+    else if(sort === "used") list.sort((a,b) => (a.used||0) - (b.used||0));
+    else list.sort((a,b) => (b.acc||0) - (a.acc||0));
+    return list;
+  }
+
   function showDetail(x){
     const detail = Array.isArray(x.detail) ? x.detail : [];
     const okList = detail.filter(d => d.sub && d.ok);
@@ -173,7 +225,7 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
       '<div class="score-detail">' +
       '<h3 style="margin:0 0 2px;font-family:"Songti SC",serif">' + esc(x.name || "匿名") + '</h3>' +
       '<p style="color:var(--muted);font-size:12.5px;margin:0 0 12px">' +
-        (CAT_NAMES[x.cat] || x.cat || "–") + ' · 正确率 ' + Math.round(x.acc || 0) + '% · ' +
+        (CAT_NAMES[x.cat] || x.cat || "–") + ' · ' + (MODE_NAMES[x.mode] || "练习") + ' · 正确率 ' + Math.round(x.acc || 0) + '% · ' +
         (x.correct ?? "–") + '/' + (x.total ?? "–") + ' · 用时 ' + fmtDur(x.used) + ' · ' + fmtTime(x.ts) + '</p>' +
       (detail.length ? group(okList, "good", "答对") + group(badList, "bad", "答错") + group(missList, "miss", "未作答") :
         '<p class="empty">暂无答题明细（旧数据）。</p>') +
@@ -231,7 +283,7 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
   }
 
   function render(){
-    const list = filter === "all" ? all : all.filter(x => x.cat === filter);
+    const list = filteredList();
 
     $("#st-count").textContent = list.length || "0";
     if(list.length){
@@ -248,26 +300,23 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
       $("#st-latest").textContent = "–";
     }
 
-    const sorted = list.slice().sort((a,b) => (b.acc||0) - (a.acc||0));
-
-    if(!sorted.length){
-      $("#rank-list").innerHTML = '<div class="empty">还没有人提交成绩。</div>';
+    if(!list.length){
+      $("#rank-list").innerHTML = '<div class="empty">没有符合条件的成绩。</div>';
       return;
     }
 
-    const maxAcc = Math.max.apply(null, sorted.map(x => x.acc || 0)) || 100;
+    const maxAcc = Math.max.apply(null, list.map(x => x.acc || 0)) || 100;
 
-    const rows = sorted.map((x, i) => {
+    const rows = list.map((x, i) => {
       const acc = Math.round(x.acc || 0);
-      const cls = acc >= 80 ? "good" : acc >= 60 ? "mid" : "bad";
-      const badge = acc >= 80 ? "good" : acc >= 60 ? "mid" : "bad";
+      const cls = gradeOf(acc);
       const badgeTxt = acc >= 80 ? "优秀" : acc >= 60 ? "合格" : "待提升";
       const rankCls = i === 0 ? "top1" : i === 1 ? "top2" : i === 2 ? "top3" : "";
       const pct = Math.max(0, Math.min(100, acc));
       const pctW = Math.max(4, pct / maxAcc * 100);
       return '<tr class="' + rankCls + ' clickable" data-idx="' + i + '">' +
         '<td class="rank">' + (i + 1) + '</td>' +
-        '<td>' + (x.name || "匿名") + '<span class="badge ' + badge + '">' + badgeTxt + '</span></td>' +
+        '<td>' + (x.name || "匿名") + '<span class="badge ' + cls + '">' + badgeTxt + '</span></td>' +
         '<td>' + (CAT_NAMES[x.cat] || x.cat || "–") + '</td>' +
         '<td class="score">' + acc + '%</td>' +
         '<td><div class="bar-cell"><div class="bar ' + cls + '"><i style="width:' + pctW + '%"></i></div><span class="pct">' + x.correct + '/' + x.total + '</span></div></td>' +
@@ -283,7 +332,7 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
     document.querySelectorAll(".clickable").forEach(tr => {
       tr.addEventListener("click", () => {
         const idx = Number(tr.dataset.idx);
-        if(!isNaN(idx) && sorted[idx]) showDetail(sorted[idx]);
+        if(!isNaN(idx) && list[idx]) showDetail(list[idx]);
       });
     });
   }
@@ -298,14 +347,37 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
     }
   }
 
-  document.querySelectorAll(".toolbar .chip").forEach(ch => {
+  // 科目筛选
+  document.querySelectorAll('[data-k]').forEach(ch => {
     ch.addEventListener("click", () => {
-      document.querySelectorAll(".toolbar .chip").forEach(c => c.classList.remove("on"));
+      document.querySelectorAll('[data-k]').forEach(c => c.classList.remove("on"));
       ch.classList.add("on");
-      filter = ch.dataset.k;
+      filter.cat = ch.dataset.k;
       render();
     });
   });
+  // 等级筛选
+  document.querySelectorAll('[data-g]').forEach(ch => {
+    ch.addEventListener("click", () => {
+      document.querySelectorAll('[data-g]').forEach(c => c.classList.remove("on"));
+      ch.classList.add("on");
+      filter.grade = ch.dataset.g;
+      render();
+    });
+  });
+  // 模式筛选
+  document.querySelectorAll('[data-m]').forEach(ch => {
+    ch.addEventListener("click", () => {
+      document.querySelectorAll('[data-m]').forEach(c => c.classList.remove("on"));
+      ch.classList.add("on");
+      filter.mode = ch.dataset.m;
+      render();
+    });
+  });
+  // 排序 + 搜索
+  $("#sb-sort").addEventListener("change", e => { filter.sort = e.target.value; render(); });
+  $("#sb-q").addEventListener("input", e => { filter.q = e.target.value.trim(); render(); });
+
   $("#btn-refresh").addEventListener("click", refresh);
   $("#modal").addEventListener("click", e => {
     if(e.target.closest("[data-close-modal]")) $("#modal").classList.remove("show");

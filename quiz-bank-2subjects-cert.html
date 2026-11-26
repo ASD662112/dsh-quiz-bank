@@ -18,6 +18,10 @@
 .sb-panel h2{font-size:16px;margin:0 0 14px;font-family:var(--serif)}
 .sb-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 16px}
 .sb-toolbar .refresh{margin-left:auto;color:var(--accent);cursor:pointer;font-size:12.5px;background:none;border:0}
+.sb-toolbar .g-label{font-size:12px;color:var(--muted);margin:0 2px}
+.sb-sort{border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink-2);padding:5px 10px;font-size:12.5px;outline:none;cursor:pointer}
+.sb-search{flex:0 0 auto;width:150px;border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink);padding:5px 12px;font-size:12.5px;outline:none}
+.sb-search:focus{border-color:var(--accent)}
 .sb-table{width:100%;border-collapse:collapse;font-size:13.5px}
 .sb-table th,.sb-table td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line-2)}
 .sb-table th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.04em}
@@ -1138,6 +1142,22 @@ input, textarea{
           <button class="chip" data-sbk="anim" type="button">二维动画制作</button>
           <button class="chip" data-sbk="design" type="button">网络安全/平面设计</button>
           <button class="refresh" id="btn-sb-refresh" type="button">⟳ 刷新</button>
+        </div>
+        <div class="sb-toolbar">
+          <button class="chip active" data-sbg="all" type="button">全部等级</button>
+          <button class="chip" data-sbg="good" type="button">优秀 ≥80%</button>
+          <button class="chip" data-sbg="mid" type="button">合格 60–79%</button>
+          <button class="chip" data-sbg="bad" type="button">待提升 &lt;60%</button>
+        </div>
+        <div class="sb-toolbar">
+          <button class="chip active" data-sbm="all" type="button">全部模式</button>
+          <button class="chip" data-sbm="exam" type="button">模拟考试</button>
+          <button class="chip" data-sbm="practice" type="button">顺序练习</button>
+          <button class="chip" data-sbm="wrong" type="button">错题重练</button>
+          <button class="chip" data-sbm="review" type="button">背诵</button>
+          <button class="chip" data-sbm="fav" type="button">收藏</button>
+          <select class="sb-sort" id="sb-sort"><option value="acc">按正确率</option><option value="ts">按提交时间</option><option value="used">按用时</option></select>
+          <input class="sb-search" id="sb-q" placeholder="搜姓名 / 学号">
         </div>
         <div id="sb-list"><div class="empty-note">加载中…</div></div>
       </div>
@@ -3460,7 +3480,7 @@ input, textarea{
 
   /* ---------------- 内置只读排行榜 ---------------- */
   let sbData = [];
-  let sbFilter = "all";
+  let sbFilter = {cat:"all", grade:"all", mode:"all", sort:"acc", q:""};
   const SB_CATS = {ps:"PS平面设计", anim:"二维动画制作", design:"平面设计师与计算机网络安全"};
   function sbTime(ts){
     if(!ts) return "–";
@@ -3507,6 +3527,23 @@ input, textarea{
       return items;
     }
   }
+  function sbGradeOf(acc){
+    return acc >= 80 ? "good" : acc >= 60 ? "mid" : "bad";
+  }
+  function sbFilteredList(){
+    let list = sbData.slice();
+    if(sbFilter.cat !== "all") list = list.filter(x => x.cat === sbFilter.cat);
+    if(sbFilter.grade !== "all") list = list.filter(x => sbGradeOf(x.acc || 0) === sbFilter.grade);
+    if(sbFilter.mode !== "all") list = list.filter(x => (x.mode || "") === sbFilter.mode);
+    if(sbFilter.q){
+      const q = sbFilter.q.toLowerCase();
+      list = list.filter(x => ((x.name || "") + " " + (x.id || "")).toLowerCase().indexOf(q) !== -1);
+    }
+    if(sbFilter.sort === "ts") list.sort((a,b) => (b.ts||0) - (a.ts||0));
+    else if(sbFilter.sort === "used") list.sort((a,b) => (a.used||0) - (b.used||0));
+    else list.sort((a,b) => (b.acc||0) - (a.acc||0));
+    return list;
+  }
   function sbDur(s){
     if(s == null || s === "") return "–";
     s = Math.round(s);
@@ -3544,7 +3581,7 @@ input, textarea{
     openModal(html);
   }
   function renderScoreboard(){
-    const list = sbFilter === "all" ? sbData : sbData.filter(x => x.cat === sbFilter);
+    const list = sbFilteredList();
     $("#sb-sub").textContent = "所有人提交的成绩 · 只读 · 共 " + list.length + " 人";
     // 统计
     const grid = $("#sb-grid");
@@ -3616,14 +3653,32 @@ input, textarea{
     const sbb = $("#btn-sb-back"); if(sbb) sbb.addEventListener("click", () => go("home"));
     const sbr = $("#btn-sb-refresh"); if(sbr) sbr.addEventListener("click", refreshScoreboard);
     const sbl = $("#sb-list"); if(sbl) sbl.addEventListener("click", e => { const tr = e.target.closest("[data-sbi]"); if(tr) showScoreDetail(sbData[Number(tr.dataset.sbi)]); });
-    document.querySelectorAll(".sb-toolbar .chip").forEach(ch => {
+    document.querySelectorAll("[data-sbk]").forEach(ch => {
       ch.addEventListener("click", () => {
-        document.querySelectorAll(".sb-toolbar .chip").forEach(c => c.classList.remove("active"));
+        document.querySelectorAll("[data-sbk]").forEach(c => c.classList.remove("active"));
         ch.classList.add("active");
-        sbFilter = ch.dataset.sbk;
+        sbFilter.cat = ch.dataset.sbk;
         renderScoreboard();
       });
     });
+    document.querySelectorAll("[data-sbg]").forEach(ch => {
+      ch.addEventListener("click", () => {
+        document.querySelectorAll("[data-sbg]").forEach(c => c.classList.remove("active"));
+        ch.classList.add("active");
+        sbFilter.grade = ch.dataset.sbg;
+        renderScoreboard();
+      });
+    });
+    document.querySelectorAll("[data-sbm]").forEach(ch => {
+      ch.addEventListener("click", () => {
+        document.querySelectorAll("[data-sbm]").forEach(c => c.classList.remove("active"));
+        ch.classList.add("active");
+        sbFilter.mode = ch.dataset.sbm;
+        renderScoreboard();
+      });
+    });
+    const sbSort = $("#sb-sort"); if(sbSort) sbSort.addEventListener("change", e => { sbFilter.sort = e.target.value; renderScoreboard(); });
+    const sbQ = $("#sb-q"); if(sbQ) sbQ.addEventListener("input", e => { sbFilter.q = e.target.value.trim(); renderScoreboard(); });
     const bs = $("#btn-search");
     if(bs) bs.addEventListener("click", () => { go("search"); $("#search-input").focus(); doSearch($("#search-input").value); });
     const bw = $("#btn-wrongbook");
