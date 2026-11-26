@@ -144,14 +144,15 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
   }
 
   async function fetchText(url){
-    const r = await fetch(url, {cache:"no-store"});
+    const sep = url.indexOf("?") === -1 ? "?" : "&";
+    const r = await fetch(url + sep + "t=" + Date.now(), {cache:"no-store"});
     if(!r.ok) throw new Error(r.status);
     return await r.text();
   }
 
   async function loadScores(){
     // 读取成绩仓库 scores 目录下所有 json 文件（公开仓库，无需 token）
-    const dirUrl = "https://api.github.com/repos/" + SCORES_OWNER + "/" + SCORES_REPO + "/contents/scores";
+    const dirUrl = "https://api.github.com/repos/" + SCORES_OWNER + "/" + SCORES_REPO + "/contents/scores?t=" + Date.now();
     const dirResp = await fetch(dirUrl, {cache:"no-store", headers:{"Accept":"application/vnd.github+json"}});
     if(!dirResp.ok) throw new Error("dir " + dirResp.status);
     const dir = await dirResp.json();
