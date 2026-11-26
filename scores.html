@@ -139,6 +139,7 @@ input,textarea,select,[contenteditable="true"],.allow-select,
     </div>
     <div class="head-actions">
       <a href="index.html" style="font-size:13.5px;color:var(--accent);text-decoration:none">← 返回题库</a>
+      <button class="btn" id="btn-export-img" type="button">⬇ 导出图片</button>
       <button class="btn" id="btn-manage" type="button">管理模式</button>
     </div>
   </div>
@@ -671,6 +672,274 @@ input,textarea,select,[contenteditable="true"],.allow-select,
     await refreshFromGithub();
   }
 
+  /* ---------- 导出当前界面为图片（纯 Canvas，无外部依赖） ---------- */
+  const EXC = {
+    paper:"#F3EFE5", panel:"#FBF8F0", card:"#FFFDF7", ink:"#17181C", ink2:"#34363D",
+    muted:"#7A756B", line:"#E9E2D3", line2:"#DCD4C4", accent:"#C9451E",
+    green:"#2C6E4E", red:"#B23A2C", accentSoft:"#F7E4DC", greenSoft:"#E4EFE6", redSoft:"#F6E1DC"
+  };
+  function expRoundRect(ctx, x, y, w, h, r){
+    if(w < 2*r) r = w/2;
+    if(h < 2*r) r = h/2;
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+  }
+  function expFont(size, weight){
+    return (weight || "400") + " " + size + 'px "PingFang SC","Microsoft YaHei","Segoe UI",sans-serif';
+  }
+  function expClip(text, maxW){
+    let s = String(text == null ? "" : text);
+    if(maxW <= 0) return "";
+    if(s.length <= 1) return s;
+    let lo = 1, hi = s.length;
+    while(lo < hi){
+      const mid = Math.ceil((lo + hi) / 2);
+      if(expMeasure(s.slice(0, mid)) <= maxW) lo = mid; else hi = mid - 1;
+    }
+    return lo >= s.length ? s : s.slice(0, lo) + "…";
+  }
+  function expMeasure(t){
+    const ctx = expMeasure._ctx || (expMeasure._ctx = document.createElement("canvas").getContext("2d"));
+    ctx.font = expFont(15);
+    return ctx.measureText(t).width;
+  }
+
+  function exportLeaderboardImage(){
+    const list = filteredList();
+    if(!list.length){ toast("没有可导出的成绩"); return; }
+
+    // 统计
+    const accs = list.map(x => sNum(x.acc));
+    const avg = Math.round((accs.reduce((a,b)=>a+b,0) / accs.length) * 10) / 10;
+    const best = Math.max.apply(null, accs);
+    const latest = Math.max.apply(null, list.map(x => sNum(x.ts)));
+    const now = new Date();
+    const P2 = n => String(n).padStart(2, "0");
+    const stamp = now.getFullYear() + "/" + P2(now.getMonth()+1) + "/" + P2(now.getDate()) + " " + P2(now.getHours()) + ":" + P2(now.getMinutes());
+
+    const DPR = 2;
+    const PAD = 44;
+    const TABLE_W = 1200;
+    const W = TABLE_W + PAD * 2;
+    const TITLE_H = 128;
+    const STAT_H = 104;
+    const GAP1 = 26;
+    const HEAD_H = 54;
+    const ROW_H = 48;
+    const FOOT_H = 52;
+    const H = PAD + TITLE_H + STAT_H + GAP1 + HEAD_H + list.length * ROW_H + 22 + FOOT_H + PAD;
+
+    const cv = document.createElement("canvas");
+    cv.width = Math.round(W * DPR);
+    cv.height = Math.round(H * DPR);
+    const ctx = cv.getContext("2d");
+    ctx.scale(DPR, DPR);
+    ctx.textBaseline = "middle";
+
+    // 背景
+    ctx.fillStyle = EXC.paper;
+    ctx.fillRect(0, 0, W, H);
+
+    let y = PAD;
+
+    // 标题
+    ctx.textAlign = "left";
+    ctx.fillStyle = EXC.ink;
+    ctx.font = expFont(34, "700");
+    ctx.fillText("成绩榜单", PAD, y + 26);
+
+    // 副标题
+    ctx.fillStyle = EXC.muted;
+    ctx.font = expFont(14);
+    ctx.fillText("数字媒体专业 3+2 转段考试 · 共 " + list.length + " 条记录 · 导出时间 " + stamp, PAD, y + 62);
+
+    // 分割线
+    ctx.strokeStyle = EXC.line2;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(PAD, y + 92);
+    ctx.lineTo(W - PAD, y + 92);
+    ctx.stroke();
+
+    y += TITLE_H;
+
+    // 统计卡片
+    const stats = [
+      {v: String(list.length), l: "提交人数"},
+      {v: avg + "%", l: "平均正确率"},
+      {v: best + "%", l: "最高分"},
+      {v: fmtTime(latest), l: "最近提交"}
+    ];
+    const cw = (TABLE_W - 3 * 16) / 4;
+    stats.forEach((s, i) => {
+      const cx = PAD + i * (cw + 16);
+      ctx.fillStyle = EXC.card;
+      expRoundRect(ctx, cx, y, cw, STAT_H, 14);
+      ctx.fill();
+      ctx.strokeStyle = EXC.line;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.textAlign = "left";
+      ctx.fillStyle = EXC.ink;
+      ctx.font = expFont(s.v.length > 10 ? 18 : 26, "700");
+      ctx.fillText(s.v, cx + 18, y + 40);
+      ctx.fillStyle = EXC.muted;
+      ctx.font = expFont(12);
+      ctx.fillText(s.l, cx + 18, y + 74);
+    });
+
+    y += STAT_H + GAP1;
+
+    // 表格列
+    const cols = [
+      {k:"rank",  label:"名次",     w:80,  align:"left"},
+      {k:"name",  label:"姓名",     w:220, align:"left"},
+      {k:"cat",   label:"科目",     w:300, align:"left"},
+      {k:"acc",   label:"正确率",   w:120, align:"right"},
+      {k:"ratio", label:"答题情况", w:170, align:"left"},
+      {k:"used",  label:"用时",     w:130, align:"right"},
+      {k:"ts",    label:"提交时间", w:180, align:"left"}
+    ];
+
+    // 表头背景
+    ctx.fillStyle = EXC.line;
+    expRoundRect(ctx, PAD, y, TABLE_W, HEAD_H, 12);
+    ctx.fill();
+
+    ctx.font = expFont(12.5, "600");
+    ctx.fillStyle = EXC.muted;
+    let cx0 = PAD;
+    ctx.textAlign = "left";
+    cols.forEach(c => {
+      const tx = c.align === "right" ? cx0 + c.w - 12 : cx0 + 12;
+      ctx.textAlign = c.align;
+      ctx.fillText(c.label, tx, y + HEAD_H/2);
+      cx0 += c.w;
+    });
+
+    y += HEAD_H;
+
+    // 行
+    list.forEach((x, i) => {
+      const acc = sNum(x.acc);
+      const accR = Math.round(acc);
+      const accDisp = (Math.abs(acc - accR) < 0.05) ? accR : (Math.round(acc * 10) / 10);
+      const cls = accR >= 80 ? "good" : accR >= 60 ? "mid" : "bad";
+      const rowY = y + i * ROW_H;
+
+      // 斑马纹
+      if(i % 2 === 1){
+        ctx.fillStyle = "rgba(251,248,240,0.85)";
+        ctx.fillRect(PAD, rowY, TABLE_W, ROW_H);
+      }
+      // 行分隔线
+      ctx.strokeStyle = EXC.line;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(PAD, rowY + ROW_H);
+      ctx.lineTo(PAD + TABLE_W, rowY + ROW_H);
+      ctx.stroke();
+
+      let cxs = PAD;
+      // 名次
+      ctx.textAlign = "left";
+      ctx.fillStyle = (x._rank === 1) ? EXC.accent : (x._rank === 2) ? "#8A6D3B" : (x._rank === 3) ? "#7A756B" : EXC.ink2;
+      ctx.font = expFont(16, "700");
+      ctx.fillText(String(x._rank || (i+1)), cxs + 12, rowY + ROW_H/2);
+      cxs += cols[0].w;
+
+      // 姓名 + 徽章
+      ctx.fillStyle = EXC.ink;
+      ctx.font = expFont(15, "600");
+      const nm = expClip(x.name || "匿名", cols[1].w - 92);
+      ctx.fillText(nm, cxs + 12, rowY + ROW_H/2);
+      const nmW = (function(){
+        const c2 = expMeasure._ctx; c2.font = expFont(15, "600");
+        return c2.measureText(nm).width;
+      })();
+      const badgeTxt = accR >= 80 ? "优秀" : accR >= 60 ? "合格" : "待提升";
+      const bx = cxs + 12 + nmW + 8;
+      const bw = 44, bh = 18;
+      ctx.fillStyle = cls === "good" ? EXC.greenSoft : cls === "mid" ? EXC.accentSoft : EXC.redSoft;
+      expRoundRect(ctx, bx, rowY + ROW_H/2 - bh/2, bw, bh, 9);
+      ctx.fill();
+      ctx.fillStyle = cls === "good" ? EXC.green : cls === "mid" ? EXC.accent : EXC.red;
+      ctx.font = expFont(10.5, "600");
+      ctx.textAlign = "left";
+      ctx.fillText(badgeTxt, bx + 8, rowY + ROW_H/2);
+      cxs += cols[1].w;
+
+      // 科目
+      ctx.fillStyle = EXC.ink2;
+      ctx.font = expFont(14);
+      ctx.textAlign = "left";
+      ctx.fillText(expClip(CAT_NAMES[x.cat] || x.cat || "–", cols[2].w - 24), cxs + 12, rowY + ROW_H/2);
+      cxs += cols[2].w;
+
+      // 正确率
+      ctx.fillStyle = EXC.ink;
+      ctx.font = expFont(16, "700");
+      ctx.textAlign = "right";
+      ctx.fillText(accDisp + "%", cxs + cols[3].w - 12, rowY + ROW_H/2);
+      cxs += cols[3].w;
+
+      // 答题情况：条形 + 数值
+      const barW = 74, barH = 8;
+      const barX = cxs + 12, barY = rowY + ROW_H/2 - barH/2;
+      const tot = Math.max(1, sNum(x.total));
+      const pct = Math.max(0, Math.min(100, Math.round(sNum(x.correct) / tot * 100)));
+      ctx.fillStyle = EXC.line;
+      expRoundRect(ctx, barX, barY, barW, barH, 4);
+      ctx.fill();
+      ctx.fillStyle = cls === "good" ? EXC.green : cls === "mid" ? EXC.accent : EXC.red;
+      expRoundRect(ctx, barX, barY, Math.max(3, barW * pct / 100), barH, 4);
+      ctx.fill();
+      ctx.fillStyle = EXC.muted;
+      ctx.font = expFont(12.5);
+      ctx.textAlign = "left";
+      ctx.fillText(sNum(x.correct) + "/" + sNum(x.total), barX + barW + 10, rowY + ROW_H/2);
+      cxs += cols[4].w;
+
+      // 用时
+      ctx.fillStyle = EXC.ink2;
+      ctx.font = expFont(14);
+      ctx.textAlign = "right";
+      ctx.fillText(fmtDur(x.used), cxs + cols[5].w - 12, rowY + ROW_H/2);
+      cxs += cols[5].w;
+
+      // 提交时间
+      ctx.fillStyle = EXC.muted;
+      ctx.font = expFont(13);
+      ctx.textAlign = "left";
+      ctx.fillText(fmtTime(x.ts), cxs + 12, rowY + ROW_H/2);
+    });
+
+    y += list.length * ROW_H + 22;
+
+    // 页脚
+    ctx.textAlign = "center";
+    ctx.fillStyle = EXC.muted;
+    ctx.font = expFont(12);
+    ctx.fillText("数据来源：github.com/ASD662112/dsh-quiz-scores · asd662112.github.io/dsh-quiz-bank/scores.html", W/2, y + 20);
+
+    // 下载
+    cv.toBlob(blob => {
+      if(!blob){ toast("导出失败，请重试"); return; }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.download = "成绩榜单_" + now.getFullYear() + P2(now.getMonth()+1) + P2(now.getDate()) + "_" + P2(now.getHours()) + P2(now.getMinutes()) + ".png";
+      a.href = url;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      toast("已导出图片");
+    }, "image/png");
+  }
+
   // 筛选
   document.querySelectorAll('[data-k]').forEach(ch => {
     ch.addEventListener("click", () => {
@@ -727,6 +996,8 @@ input,textarea,select,[contenteditable="true"],.allow-select,
   });
 
   // 管理模式开关
+  const bei = $("#btn-export-img");
+  if(bei) bei.addEventListener("click", exportLeaderboardImage);
   $("#btn-manage").addEventListener("click", () => {
     manageMode = !manageMode;
     selected.clear();
