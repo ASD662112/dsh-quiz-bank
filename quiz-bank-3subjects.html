@@ -200,6 +200,30 @@ html[data-fs="l"] .qtext{line-height:1.7}
 .toolbtn:hover{border-color:var(--accent);color:var(--accent)}
 .toolbtn.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-2)}
 .toolbtn .ico{font-size:14px;line-height:1}
+/* 移动端「更多」折叠菜单（桌面端 display:contents 保持原样） */
+.more-btn{display:none}
+.more-panel{display:contents}
+@media (max-width:820px){
+  .masthead-right{position:relative}
+  .hometools{gap:6px}
+  .more-btn{display:inline-flex}
+  .more-panel{
+    display:none;position:absolute;top:calc(100% + 10px);right:0;
+    min-width:172px;background:var(--paper-2);border:1px solid var(--line);
+    border-radius:16px;padding:8px;z-index:70;
+    box-shadow:0 18px 44px -20px rgba(23,24,28,.45);
+    flex-direction:column;align-items:stretch;gap:4px;
+  }
+  .more-panel.show{display:flex}
+  .more-panel .toolbtn{
+    width:100%;justify-content:flex-start;border-color:transparent;background:transparent;
+    padding:9px 12px;font-size:13.5px;border-radius:10px;
+  }
+  .more-panel .toolbtn:hover{background:var(--paper-3);border-color:transparent;color:var(--accent)}
+  .more-panel .toolbtn.on{background:var(--accent-soft);color:var(--accent-2);border-color:transparent}
+  .more-panel .link-btn{width:100%;text-align:left;padding:9px 12px;border-radius:10px;font-size:13.5px}
+  .more-btn.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-2)}
+}
 
 /* 考试时间条 */
 .exambar{display:none;align-items:center;gap:10px;padding:6px 0 0}
@@ -957,7 +981,7 @@ input,textarea,select,[contenteditable="true"],.allow-select,
     <div class="home">
       <div class="masthead">
         <span><b id="brand-short">PS</b> / <span id="brand-name">课程题库</span></span>
-        <span class="masthead-right"><span class="masthead-tag">数字媒体 3+2 · 转段考试</span><span class="hometools"><button class="toolbtn" id="btn-stats" type="button"><span class="ico">▤</span>学习统计</button><button class="toolbtn" id="btn-dark" type="button"><span class="ico">☾</span>夜间</button><button class="toolbtn" id="btn-font" type="button"><span class="ico">A</span>字号</button><button class="toolbtn" id="btn-search" type="button"><span class="ico">⌕</span>搜索</button><button class="toolbtn" id="btn-wrongbook" type="button"><span class="ico">✎</span>错题本</button><button class="toolbtn" id="btn-scoreboard" type="button"><span class="ico">🏆</span>成绩榜单</button><button class="link-btn" id="btn-switch-theme" type="button">切换主题</button></span></span>
+        <span class="masthead-right"><span class="masthead-tag">数字媒体 3+2 · 转段考试</span><span class="hometools"><button class="toolbtn" id="btn-search" type="button"><span class="ico">⌕</span>搜索</button><button class="toolbtn" id="btn-wrongbook" type="button"><span class="ico">✎</span>错题本</button><button class="toolbtn more-btn" id="btn-more" type="button" aria-haspopup="true" aria-expanded="false"><span class="ico">⋯</span>更多</button><span class="more-panel" id="more-panel"><button class="toolbtn" id="btn-stats" type="button"><span class="ico">▤</span>学习统计</button><button class="toolbtn" id="btn-dark" type="button"><span class="ico">☾</span>夜间</button><button class="toolbtn" id="btn-font" type="button"><span class="ico">A</span>字号</button><button class="toolbtn" id="btn-scoreboard" type="button"><span class="ico">🏆</span>成绩榜单</button><button class="link-btn" id="btn-switch-theme" type="button">切换主题</button></span></span></span>
       </div>
 
       <header class="hero">
@@ -3956,6 +3980,30 @@ input,textarea,select,[contenteditable="true"],.allow-select,
     const sbdt = $("#sb-date-to"); if(sbdt) sbdt.addEventListener("change", e => { sbFilter.to = e.target.value; renderScoreboard(); });
     const sbSort = $("#sb-sort"); if(sbSort) sbSort.addEventListener("change", e => { sbFilter.sortKey = e.target.value; sbFilter.sortDir = "desc"; renderScoreboard(); });
     const sbQ = $("#sb-q"); if(sbQ) sbQ.addEventListener("input", e => { sbFilter.q = e.target.value.trim(); renderScoreboard(); });
+    // 移动端「更多」菜单交互
+    const moreBtn = $("#btn-more"), morePanel = $("#more-panel");
+    function closeMore(){
+      if(!morePanel) return;
+      morePanel.classList.remove("show");
+      if(moreBtn){ moreBtn.classList.remove("on"); moreBtn.setAttribute("aria-expanded", "false"); }
+    }
+    if(moreBtn && morePanel){
+      moreBtn.addEventListener("click", e => {
+        e.stopPropagation();
+        const open = morePanel.classList.toggle("show");
+        moreBtn.classList.toggle("on", open);
+        moreBtn.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+      morePanel.addEventListener("click", e => {
+        if(e.target.closest("button")) setTimeout(closeMore, 0);
+      });
+      document.addEventListener("click", e => {
+        if(!morePanel.classList.contains("show")) return;
+        if(e.target.closest("#more-panel") || e.target.closest("#btn-more")) return;
+        closeMore();
+      });
+      document.addEventListener("keydown", e => { if(e.key === "Escape") closeMore(); });
+    }
     const bs = $("#btn-search");
     if(bs) bs.addEventListener("click", () => { go("search"); $("#search-input").focus(); doSearch($("#search-input").value); });
     const bw = $("#btn-wrongbook");
