@@ -28,6 +28,11 @@
 .sb-table{width:100%;border-collapse:collapse;font-size:13.5px}
 .sb-table th,.sb-table td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line-2)}
 .sb-table th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.04em}
+.sb-table th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
+.sb-table th.sortable:hover{color:var(--accent)}
+.sb-table th.sortable .arw{display:inline-block;margin-left:3px;opacity:.28;font-size:10px}
+.sb-table th.sortable.on{color:var(--accent)}
+.sb-table th.sortable.on .arw{opacity:1}
 .sb-table tr:last-child td{border-bottom:0}
 .sb-table td.rank{font-family:var(--serif);font-weight:700;font-size:16px;width:52px}
 .sb-table tr.top1 td.rank{color:var(--accent)}
@@ -3581,7 +3586,7 @@ input,textarea,select,[contenteditable="true"],.allow-select,
 
   /* ---------------- 内置只读排行榜 ---------------- */
   let sbData = [];
-  let sbFilter = {cat:"all", grade:"all", mode:"all", time:"all", from:"", to:"", sort:"acc", q:""};
+  let sbFilter = {cat:"all", grade:"all", mode:"all", time:"all", from:"", to:"", sort:"acc", sortKey:"acc", sortDir:"desc", q:""};
   const SB_CATS = {ps:"PS平面设计", anim:"二维动画制作", design:"平面设计师与计算机网络安全"};
   function sbTime(ts){
     if(!ts) return "–";
@@ -3689,10 +3694,22 @@ input,textarea,select,[contenteditable="true"],.allow-select,
       const q = sbFilter.q.toLowerCase();
       list = list.filter(x => ((x.name || "") + " " + (x.id || "")).toLowerCase().indexOf(q) !== -1);
     }
-    if(sbFilter.sort === "ts") list.sort((a,b) => (b.ts||0) - (a.ts||0));
-    else if(sbFilter.sort === "used") list.sort((a,b) => (a.used||0) - (b.used||0));
-    else list.sort((a,b) => (b.acc||0) - (a.acc||0));
-    return list;
+    return sbSortList(list);
+  }
+  function sbSortList(list){
+    const k = sbFilter.sortKey;
+    const dir = sbFilter.sortDir === "asc" ? 1 : -1;
+    const num = v => (typeof v === "number" ? v : parseFloat(v) || 0);
+    const cmp = {
+      rank:   (a,b) => num(a.acc) - num(b.acc),
+      name:   (a,b) => String(a.name||"").localeCompare(String(b.name||""), "zh"),
+      cat:    (a,b) => String(SB_CATS[a.cat]||a.cat||"").localeCompare(String(SB_CATS[b.cat]||b.cat||""), "zh"),
+      acc:    (a,b) => num(a.acc) - num(b.acc),
+      ratio:  (a,b) => (num(a.correct)/Math.max(1,num(a.total))) - (num(b.correct)/Math.max(1,num(b.total))),
+      used:   (a,b) => num(a.used) - num(b.used),
+      ts:     (a,b) => num(a.ts) - num(b.ts)
+    }[k] || ((a,b) => num(a.acc) - num(b.acc));
+    return list.sort((a,b) => cmp(a,b) * dir);
   }
   function sbDur(s){
     if(s == null || s === "") return "–";
@@ -3777,8 +3794,34 @@ input,textarea,select,[contenteditable="true"],.allow-select,
         '</tr>';
     }).join("");
     $("#sb-list").innerHTML =
-      '<table class="sb-table"><thead><tr><th>名次</th><th>姓名</th><th>科目</th><th>正确率</th><th>答题情况</th><th>用时</th><th>提交时间</th></tr></thead><tbody>' +
+      '<table class="sb-table"><thead><tr>' +
+      '<th class="sortable" data-sk="rank">名次<span class="arw">↕</span></th>' +
+      '<th class="sortable" data-sk="name">姓名<span class="arw">↕</span></th>' +
+      '<th class="sortable" data-sk="cat">科目<span class="arw">↕</span></th>' +
+      '<th class="sortable" data-sk="acc">正确率<span class="arw">↕</span></th>' +
+      '<th class="sortable" data-sk="ratio">答题情况<span class="arw">↕</span></th>' +
+      '<th class="sortable" data-sk="used">用时<span class="arw">↕</span></th>' +
+      '<th class="sortable" data-sk="ts">提交时间<span class="arw">↕</span></th>' +
+      '</tr></thead><tbody>' +
       rows + '</tbody></table>';
+
+    // 表头排序状态与点击
+    document.querySelectorAll("#sb-list th.sortable").forEach(th => {
+      const k = th.dataset.sk;
+      const on = (sbFilter.sortKey === k);
+      th.classList.toggle("on", on);
+      const arw = th.querySelector(".arw");
+      if(arw) arw.textContent = on ? (sbFilter.sortDir === "asc" ? "↑" : "↓") : "↕";
+      th.addEventListener("click", () => {
+        if(sbFilter.sortKey === k){
+          sbFilter.sortDir = sbFilter.sortDir === "asc" ? "desc" : "asc";
+        }else{
+          sbFilter.sortKey = k;
+          sbFilter.sortDir = (k === "name" || k === "cat") ? "asc" : "desc";
+        }
+        renderScoreboard();
+      });
+    });
   }
   async function refreshScoreboard(){
     $("#sb-list").innerHTML = '<div class="empty-note">加载中…</div>';
@@ -3839,7 +3882,7 @@ input,textarea,select,[contenteditable="true"],.allow-select,
     });
     const sbdf = $("#sb-date-from"); if(sbdf) sbdf.addEventListener("change", e => { sbFilter.from = e.target.value; renderScoreboard(); });
     const sbdt = $("#sb-date-to"); if(sbdt) sbdt.addEventListener("change", e => { sbFilter.to = e.target.value; renderScoreboard(); });
-    const sbSort = $("#sb-sort"); if(sbSort) sbSort.addEventListener("change", e => { sbFilter.sort = e.target.value; renderScoreboard(); });
+    const sbSort = $("#sb-sort"); if(sbSort) sbSort.addEventListener("change", e => { sbFilter.sortKey = e.target.value; sbFilter.sortDir = "desc"; renderScoreboard(); });
     const sbQ = $("#sb-q"); if(sbQ) sbQ.addEventListener("input", e => { sbFilter.q = e.target.value.trim(); renderScoreboard(); });
     const bs = $("#btn-search");
     if(bs) bs.addEventListener("click", () => { go("search"); $("#search-input").focus(); doSearch($("#search-input").value); });

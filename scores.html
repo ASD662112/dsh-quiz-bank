@@ -49,6 +49,11 @@ body{margin:0;min-height:100vh;font-family:"PingFang SC","HarmonyOS Sans SC","Mi
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line-2)}
 th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.04em}
+th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
+th.sortable:hover{color:var(--accent)}
+th.sortable .arw{display:inline-block;margin-left:3px;opacity:.28;font-size:10px}
+th.sortable.on{color:var(--accent)}
+th.sortable.on .arw{opacity:1}
 tr:last-child td{border-bottom:0}
 td.rank{font-family:"Songti SC",serif;font-weight:700;font-size:16px;width:52px}
 tr.top1 td.rank{color:var(--accent)}
@@ -221,7 +226,7 @@ input,textarea,select,[contenteditable="true"],.allow-select,
       "m7FaIGRMY7W4bqhPSGpG";
 
   let all = [];
-  let filter = {cat:"all", grade:"all", mode:"all", time:"all", from:"", to:"", sort:"acc", q:""};
+  let filter = {cat:"all", grade:"all", mode:"all", time:"all", from:"", to:"", sort:"acc", sortKey:"acc", sortDir:"desc", q:""};
   let manageMode = false;
   let selected = new Set();
 
@@ -281,6 +286,22 @@ input,textarea,select,[contenteditable="true"],.allow-select,
     return true;
   }
 
+  function sortList(list){
+    const k = filter.sortKey;
+    const dir = filter.sortDir === "asc" ? 1 : -1;
+    const num = v => (typeof v === "number" ? v : parseFloat(v) || 0);
+    const cmp = {
+      rank:   (a,b) => num(a.acc) - num(b.acc),
+      name:   (a,b) => String(a.name||"").localeCompare(String(b.name||""), "zh"),
+      cat:    (a,b) => String(CAT_NAMES[a.cat]||a.cat||"").localeCompare(String(CAT_NAMES[b.cat]||b.cat||""), "zh"),
+      acc:    (a,b) => num(a.acc) - num(b.acc),
+      ratio:  (a,b) => (num(a.correct)/Math.max(1,num(a.total))) - (num(b.correct)/Math.max(1,num(b.total))),
+      used:   (a,b) => num(a.used) - num(b.used),
+      ts:     (a,b) => num(a.ts) - num(b.ts)
+    }[k] || ((a,b) => num(a.acc) - num(b.acc));
+    return list.sort((a,b) => cmp(a,b) * dir);
+  }
+
   function filteredList(){
     let list = all.slice();
     if(filter.cat !== "all") list = list.filter(x => x.cat === filter.cat);
@@ -291,10 +312,7 @@ input,textarea,select,[contenteditable="true"],.allow-select,
       const q = filter.q.toLowerCase();
       list = list.filter(x => ((x.name || "") + " " + (x.id || "")).toLowerCase().indexOf(q) !== -1);
     }
-    if(filter.sort === "ts") list.sort((a,b) => (b.ts||0) - (a.ts||0));
-    else if(filter.sort === "used") list.sort((a,b) => (a.used||0) - (b.used||0));
-    else list.sort((a,b) => (b.acc||0) - (a.acc||0));
-    return list;
+    return sortList(list);
   }
 
   function showDetail(x){
@@ -462,11 +480,30 @@ input,textarea,select,[contenteditable="true"],.allow-select,
         '</tr>';
     }).join("");
 
+    const sortTh = (k, label) => '<th class="sortable" data-sk="' + k + '">' + label + '<span class="arw">↕</span></th>';
     const head = manageMode
-      ? '<tr><th style="width:32px"><input type="checkbox" id="ck-all-inline" class="ck"></th><th>名次</th><th>姓名</th><th>科目</th><th>正确率</th><th>答题情况</th><th>用时</th><th>提交时间</th></tr>'
-      : '<tr><th>名次</th><th>姓名</th><th>科目</th><th>正确率</th><th>答题情况</th><th>用时</th><th>提交时间</th></tr>';
+      ? '<tr><th style="width:32px"><input type="checkbox" id="ck-all-inline" class="ck"></th>' + sortTh("rank","名次") + sortTh("name","姓名") + sortTh("cat","科目") + sortTh("acc","正确率") + sortTh("ratio","答题情况") + sortTh("used","用时") + sortTh("ts","提交时间") + '</tr>'
+      : '<tr>' + sortTh("rank","名次") + sortTh("name","姓名") + sortTh("cat","科目") + sortTh("acc","正确率") + sortTh("ratio","答题情况") + sortTh("used","用时") + sortTh("ts","提交时间") + '</tr>';
 
     $("#rank-list").innerHTML = '<table><thead>' + head + '</thead><tbody>' + rows + '</tbody></table>';
+
+    // 表头排序状态与点击
+    document.querySelectorAll("th.sortable").forEach(th => {
+      const k = th.dataset.sk;
+      const on = (filter.sortKey === k);
+      th.classList.toggle("on", on);
+      const arw = th.querySelector(".arw");
+      if(arw) arw.textContent = on ? (filter.sortDir === "asc" ? "↑" : "↓") : "↕";
+      th.addEventListener("click", () => {
+        if(filter.sortKey === k){
+          filter.sortDir = filter.sortDir === "asc" ? "desc" : "asc";
+        }else{
+          filter.sortKey = k;
+          filter.sortDir = (k === "name" || k === "cat") ? "asc" : "desc";
+        }
+        render();
+      });
+    });
 
     // 绑定行复选框与全选
     if(manageMode){
@@ -569,7 +606,11 @@ input,textarea,select,[contenteditable="true"],.allow-select,
       render();
     });
   });
-  $("#sb-sort").addEventListener("change", e => { filter.sort = e.target.value; render(); });
+  $("#sb-sort").addEventListener("change", e => {
+    filter.sortKey = e.target.value;
+    filter.sortDir = "desc";
+    render();
+  });
   $("#sb-q").addEventListener("input", e => { filter.q = e.target.value.trim(); render(); });
   // 时间筛选
   document.querySelectorAll('[data-t]').forEach(ch => {
