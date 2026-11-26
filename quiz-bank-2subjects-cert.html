@@ -633,6 +633,19 @@ kbd{
 }
 .quiz-actions .btn{padding:12px 26px;box-shadow:0 6px 18px -10px rgba(23,24,28,.5)}
 .quiz-actions .btn.ghost{box-shadow:none;background:rgba(243,239,229,.8);backdrop-filter:blur(6px)}
+/* 最后一题：结束按钮强调 + 提示条 */
+.quiz-actions .btn.is-final{
+  box-shadow:0 0 0 3px var(--accent-soft), 0 12px 26px -14px rgba(201,69,30,.75);
+  letter-spacing:.01em;
+}
+.final-note{
+  margin:12px 0 0;text-align:center;font-size:12.5px;line-height:1.6;
+  color:var(--accent-2);
+}
+.final-note b{font-weight:700}
+@media (max-width:640px){
+  .final-note{margin:10px 0 0;font-size:12px}
+}
 .quiz-hint{
   display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:7px;
   margin-top:24px;font-size:11.5px;color:var(--faint);letter-spacing:.04em;
@@ -1132,6 +1145,7 @@ input,textarea,select,[contenteditable="true"],.allow-select,
         <button class="btn ghost" id="btn-prev" type="button">← 上一题</button>
         <button class="btn primary" id="btn-next" type="button">下一题 →</button>
       </div>
+      <p class="final-note" id="final-note" hidden></p>
       <p class="quiz-hint" id="quiz-hint"><kbd>A</kbd>–<kbd>D</kbd> 选择 · <kbd>Enter</kbd> 确认 / 下一题 · <kbd>←</kbd><kbd>→</kbd> 翻题</p>
     </main>
   </section>
@@ -2500,13 +2514,44 @@ input,textarea,select,[contenteditable="true"],.allow-select,
   }
 
   function renderNav(){
-    const last = state.idx === state.queue.length - 1;
-    $("#btn-prev").disabled = state.idx === 0;
+    const n = state.queue.length;
+    const last = state.idx >= n - 1;
     const next = $("#btn-next");
+    const note = $("#final-note");
+    $("#btn-prev").disabled = state.idx === 0;
+    next.classList.toggle("is-final", last);
+
+    if(!last){
+      next.textContent = "下一题 →";
+      if(note) note.hidden = true;
+      return;
+    }
+
+    const un = Math.max(0, n - answeredCount());
+    const unTxt = un > 0 ? "（" + un + " 题未答）" : "";
+
     if(state.mode === "exam"){
-      next.textContent = last ? "交卷 →" : "下一题 →";
+      next.textContent = "交卷" + unTxt + " →";
+      if(note){
+        note.innerHTML = n <= 1
+          ? "本次仅 1 道题，点击「<b>交卷</b>」结束考试"
+          : "已是最后一题，点击「<b>交卷</b>」结束考试" + (un > 0 ? "（还有 <b>" + un + "</b> 题未答）" : "，全部题目均已作答");
+        note.hidden = false;
+      }
+    }else if(state.mode === "wrong"){
+      next.textContent = "完成重练" + unTxt + " →";
+      if(note){
+        note.innerHTML = "已是最后一题，点击「<b>完成重练</b>」查看本次结果" + (un > 0 ? "（还有 <b>" + un + "</b> 题未答）" : "");
+        note.hidden = false;
+      }
     }else{
-      next.textContent = last ? "完成练习 →" : "下一题 →";
+      next.textContent = "完成练习" + unTxt + " →";
+      if(note){
+        note.innerHTML = n <= 1
+          ? "本次仅 1 道题，点击「<b>完成练习</b>」查看结果"
+          : "已是最后一题，点击「<b>完成练习</b>」查看本次结果" + (un > 0 ? "（还有 <b>" + un + "</b> 题未答）" : "，全部题目均已作答");
+        note.hidden = false;
+      }
     }
   }
 
