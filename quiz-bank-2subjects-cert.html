@@ -3664,6 +3664,24 @@ input,textarea,select,[contenteditable="true"],.allow-select,
   const sbMissing = v => (v == null || v === "" || isNaN(parseFloat(v)));
 
   // 连续名次 1..N（正确率降序 → 答对数降序 → 用时升序）
+  // 同科目 + 同姓名 只保留最好的一条：正确率高 > 用时短 > 提交早
+  function sbIsBetterRecord(a, b){
+    const da = sbNum(a.acc) - sbNum(b.acc);
+    if(Math.abs(da) > 1e-9) return da > 0;
+    const ua = sbNum(a.used), ub = sbNum(b.used);
+    if(ua !== ub) return ua < ub;
+    return sbNum(a.ts) < sbNum(b.ts);
+  }
+  function sbDedupeBest(list){
+    const map = new Map();
+    for(const x of list){
+      const key = String(x.cat || "") + "||" + String(x.name || "匿名").trim().toLowerCase();
+      const cur = map.get(key);
+      if(!cur || sbIsBetterRecord(x, cur)) map.set(key, x);
+    }
+    return Array.from(map.values());
+  }
+
   function sbComputeRanks(){
     const sorted = sbData.slice().sort((a,b) =>
       (sbNum(b.acc) - sbNum(a.acc)) ||
@@ -3832,7 +3850,7 @@ input,textarea,select,[contenteditable="true"],.allow-select,
   async function refreshScoreboard(){
     $("#sb-list").innerHTML = '<div class="empty-note">加载中…</div>';
     try{
-      sbData = await loadScoreboard();
+      sbData = sbDedupeBest(await loadScoreboard());
       renderScoreboard();
     }catch(e){
       $("#sb-list").innerHTML = '<div class="empty-note">加载失败，请稍后重试。</div>';

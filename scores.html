@@ -290,6 +290,24 @@ input,textarea,select,[contenteditable="true"],.allow-select,
   const sMissing = v => (v == null || v === "" || isNaN(parseFloat(v)));
 
   // 连续名次 1..N（正确率降序 → 答对数降序 → 用时升序）
+  // 同科目 + 同姓名 只保留最好的一条：正确率高 > 用时短 > 提交早
+  function isBetterRecord(a, b){
+    const da = sNum(a.acc) - sNum(b.acc);
+    if(Math.abs(da) > 1e-9) return da > 0;
+    const ua = sNum(a.used), ub = sNum(b.used);
+    if(ua !== ub) return ua < ub;
+    return sNum(a.ts) < sNum(b.ts);
+  }
+  function dedupeBest(list){
+    const map = new Map();
+    for(const x of list){
+      const key = String(x.cat || "") + "||" + String(x.name || "匿名").trim().toLowerCase();
+      const cur = map.get(key);
+      if(!cur || isBetterRecord(x, cur)) map.set(key, x);
+    }
+    return Array.from(map.values());
+  }
+
   function computeRanks(){
     const sorted = all.slice().sort((a,b) =>
       (sNum(b.acc) - sNum(a.acc)) ||
@@ -601,7 +619,7 @@ input,textarea,select,[contenteditable="true"],.allow-select,
   async function refresh(){
     $("#rank-list").innerHTML = '<div class="loading">加载中…</div>';
     try{
-      all = await loadScores();
+      all = dedupeBest(await loadScores());
       render();
     }catch(e){
       $("#rank-list").innerHTML = '<div class="empty">加载失败，请稍后重试。</div>';
@@ -612,12 +630,12 @@ input,textarea,select,[contenteditable="true"],.allow-select,
   async function refreshFromGithub(){
     $("#rank-list").innerHTML = '<div class="loading">加载中…</div>';
     try{
-      all = await loadFromGithub();
+      all = dedupeBest(await loadFromGithub());
       render();
     }catch(e){
       // GitHub 失败时退回双源，至少能显示数据
       try{
-        all = await loadScores();
+        all = dedupeBest(await loadScores());
         render();
       }catch(e2){
         $("#rank-list").innerHTML = '<div class="empty">加载失败，请稍后重试。</div>';
