@@ -19,6 +19,10 @@ body{margin:0;min-height:100vh;font-family:"PingFang SC","HarmonyOS Sans SC","Mi
 .head .sub{color:var(--muted);font-size:13px;margin:4px 0 0}
 .head a{color:var(--accent);text-decoration:none;font-size:13.5px;border-bottom:1px solid transparent}
 .head a:hover{border-bottom-color:var(--accent)}
+.head-actions{display:flex;gap:10px;align-items:center}
+.head-actions .btn{font-size:12.5px;padding:6px 14px;border:1px solid var(--line);border-radius:999px;background:var(--paper-3);color:var(--ink-2);cursor:pointer}
+.head-actions .btn.danger{color:var(--red);border-color:var(--red)}
+.head-actions .btn.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .panel{background:var(--paper-2);border:1px solid var(--line-2);border-radius:16px;padding:18px 20px;margin:16px 0;box-shadow:var(--shadow)}
 .panel h2{font-size:16px;margin:0 0 14px;font-family:"Songti SC",STSong,SimSun,serif}
 .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 16px}
@@ -26,6 +30,11 @@ body{margin:0;min-height:100vh;font-family:"PingFang SC","HarmonyOS Sans SC","Mi
   cursor:pointer;font-size:12.5px}
 .toolbar .chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .toolbar .refresh{margin-left:auto;color:var(--accent);cursor:pointer;font-size:12.5px;background:none;border:0}
+.manage-bar{display:none;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;background:var(--red-soft);border:1px solid var(--red);border-radius:12px}
+.manage-bar.show{display:flex}
+.manage-bar .sel-count{font-size:12.5px;color:var(--red);font-weight:600}
+.manage-bar .btn{padding:6px 13px;border:1px solid var(--red);border-radius:999px;background:var(--paper-3);color:var(--red);cursor:pointer;font-size:12.5px}
+.manage-bar .btn:hover{background:var(--red);color:#fff}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line-2)}
 th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.04em}
@@ -52,6 +61,9 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
 .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:34px}
 .foot a{color:var(--accent);text-decoration:none}
 .loading{text-align:center;color:var(--muted);padding:50px 0;font-size:14px}
+.ck{width:16px;height:16px;cursor:pointer;accent-color:var(--accent)}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99}
+.toast.show{opacity:1}
 </style>
 </head>
 <body>
@@ -61,7 +73,10 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
       <h1>成绩榜单</h1>
       <p class="sub">数字媒体专业 3+2 转段考试 · 所有人提交的成绩 · 数据每 2 分钟自动刷新</p>
     </div>
-    <a href="index.html">← 返回题库</a>
+    <div class="head-actions">
+      <a href="index.html" style="font-size:13.5px;color:var(--accent);text-decoration:none">← 返回题库</a>
+      <button class="btn" id="btn-manage" type="button">管理模式</button>
+    </div>
   </div>
 
   <div class="stat-grid" id="stat-grid">
@@ -80,6 +95,12 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
       <span class="chip" data-k="design">网络安全/平面设计</span>
       <button class="refresh" id="btn-refresh" type="button">⟳ 刷新</button>
     </div>
+    <div class="manage-bar" id="manage-bar">
+      <label style="font-size:12.5px;color:var(--red);cursor:pointer"><input type="checkbox" id="ck-all" class="ck"> 全选当前</label>
+      <span class="sel-count" id="sel-count">已选 0 项</span>
+      <button class="btn" id="btn-del-sel" type="button">删除所选</button>
+      <button class="btn" id="btn-del-all" type="button">全部删除</button>
+    </div>
     <div id="rank-list"><div class="loading">加载中…</div></div>
   </div>
 
@@ -89,17 +110,31 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
   </div>
 </div>
 
+<div class="toast" id="toast"></div>
+
 <script>
 (function(){
   "use strict";
   const SCORES_OWNER = "ASD662112";
   const SCORES_REPO = "dsh-quiz-scores";
   const CAT_NAMES = {ps:"PS平面设计", anim:"二维动画制作", design:"平面设计师与计算机网络安全"};
+  const SCORE_TOKEN = "github_pat_11BRVNSMI0bOtOhJ87OByv_" +
+      "hVVKPw8yi6X1QYDyd6ZCWOnOnkBOA7GM47Mkv47" +
+      "m7FaIGRMY7W4bqhPSGpG";
 
   let all = [];
   let filter = "all";
+  let manageMode = false;
+  let selected = new Set();
 
   function $(s){ return document.querySelector(s); }
+  function toast(msg){
+    const el = $("#toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => el.classList.remove("show"), 2200);
+  }
 
   function fmtTime(ts){
     if(!ts) return "–";
@@ -122,19 +157,33 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
     const dir = await dirResp.json();
     const files = (Array.isArray(dir) ? dir : [])
       .filter(f => f.type === "file" && /\.json$/i.test(f.name))
-      .map(f => f.download_url)
-      .filter(Boolean);
+      .map(f => ({name: f.name, sha: f.sha, url: f.download_url}))
+      .filter(f => f.url);
 
     const items = [];
-    for(const url of files){
+    for(const f of files){
       try{
-        const raw = await fetchText(url);
+        const raw = await fetchText(f.url);
         const obj = JSON.parse(raw);
-        obj._url = url;
+        obj._file = f.name;
+        obj._sha = f.sha;
         items.push(obj);
       }catch(e){ /* 单个文件失败跳过 */ }
     }
     return items;
+  }
+
+  async function deleteScore(file, sha){
+    const r = await fetch("https://api.github.com/repos/" + SCORES_OWNER + "/" + SCORES_REPO + "/contents/scores/" + file, {
+      method: "DELETE",
+      headers: {
+        "Authorization": "token " + SCORE_TOKEN,
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({message: "删除成绩 " + file, sha: sha})
+    });
+    return r;
   }
 
   function render(){
@@ -156,11 +205,11 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
       $("#st-latest").textContent = "–";
     }
 
-    // 按正确率排序
     const sorted = list.slice().sort((a,b) => (b.acc||0) - (a.acc||0));
 
     if(!sorted.length){
       $("#rank-list").innerHTML = '<div class="empty">还没有人提交成绩。</div>';
+      syncSelBar();
       return;
     }
 
@@ -174,7 +223,11 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
       const rankCls = i === 0 ? "top1" : i === 1 ? "top2" : i === 2 ? "top3" : "";
       const pct = Math.max(0, Math.min(100, acc));
       const pctW = Math.max(4, pct / maxAcc * 100);
+      const ck = manageMode
+        ? '<td style="width:32px"><input type="checkbox" class="ck row-ck" data-file="' + (x._file||"") + '"' + (selected.has(x._file) ? " checked" : "") + '></td>'
+        : '';
       return '<tr class="' + rankCls + '">' +
+        ck +
         '<td class="rank">' + (i + 1) + '</td>' +
         '<td>' + (x.name || "匿名") + '<span class="badge ' + badge + '">' + badgeTxt + '</span></td>' +
         '<td>' + (CAT_NAMES[x.cat] || x.cat || "–") + '</td>' +
@@ -184,9 +237,41 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
         '</tr>';
     }).join("");
 
-    $("#rank-list").innerHTML =
-      '<table><thead><tr><th>名次</th><th>姓名</th><th>科目</th><th>正确率</th><th>答题情况</th><th>提交时间</th></tr></thead><tbody>' +
-      rows + '</tbody></table>';
+    const head = manageMode
+      ? '<tr><th style="width:32px"><input type="checkbox" id="ck-all-inline" class="ck"></th><th>名次</th><th>姓名</th><th>科目</th><th>正确率</th><th>答题情况</th><th>提交时间</th></tr>'
+      : '<tr><th>名次</th><th>姓名</th><th>科目</th><th>正确率</th><th>答题情况</th><th>提交时间</th></tr>';
+
+    $("#rank-list").innerHTML = '<table><thead>' + head + '</thead><tbody>' + rows + '</tbody></table>';
+
+    // 绑定行复选框与全选
+    if(manageMode){
+      document.querySelectorAll(".row-ck").forEach(ck => {
+        ck.addEventListener("change", () => {
+          const f = ck.dataset.file;
+          if(ck.checked) selected.add(f); else selected.delete(f);
+          syncSelBar();
+        });
+      });
+      const allCk = $("#ck-all-inline");
+      if(allCk) allCk.addEventListener("change", () => {
+        document.querySelectorAll(".row-ck").forEach(ck => { ck.checked = allCk.checked; });
+        selected = new Set();
+        if(allCk.checked) sorted.forEach(x => selected.add(x._file));
+        syncSelBar();
+      });
+      if(allCk) allCk.checked = sorted.length > 0 && sorted.every(x => selected.has(x._file));
+    }
+    syncSelBar();
+  }
+
+  function syncSelBar(){
+    const bar = $("#manage-bar");
+    bar.classList.toggle("show", manageMode);
+    const list = filter === "all" ? all : all.filter(x => x.cat === filter);
+    $("#sel-count").textContent = "已选 " + selected.size + " 项";
+    $("#btn-del-sel").disabled = selected.size === 0;
+    $("#btn-del-all").disabled = list.length === 0;
+    $("#ck-all").checked = list.length > 0 && list.every(x => selected.has(x._file));
   }
 
   async function refresh(){
@@ -199,6 +284,32 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
     }
   }
 
+  async function deleteSelected(){
+    if(!selected.size){ toast("请先勾选要删除的成绩"); return; }
+    if(!confirm("确定删除所选 " + selected.size + " 条成绩？此操作不可恢复。")) return;
+    const targets = all.filter(x => selected.has(x._file));
+    let ok = 0;
+    for(const x of targets){
+      try{ const r = await deleteScore(x._file, x._sha); if(r.ok) ok++; }catch(e){}
+    }
+    selected.clear();
+    toast("已删除 " + ok + " / " + targets.length + " 条");
+    await refresh();
+  }
+
+  async function deleteAll(){
+    if(!all.length){ toast("没有成绩可删除"); return; }
+    if(!confirm("确定删除全部 " + all.length + " 条成绩？此操作不可恢复。")) return;
+    const targets = all.slice();
+    let ok = 0;
+    for(const x of targets){
+      try{ const r = await deleteScore(x._file, x._sha); if(r.ok) ok++; }catch(e){}
+    }
+    selected.clear();
+    toast("已删除 " + ok + " / " + targets.length + " 条");
+    await refresh();
+  }
+
   // 筛选
   document.querySelectorAll(".toolbar .chip").forEach(ch => {
     ch.addEventListener("click", () => {
@@ -209,6 +320,23 @@ td.score{font-weight:700;font-family:"Songti SC",serif;font-size:17px}
     });
   });
   $("#btn-refresh").addEventListener("click", refresh);
+
+  // 管理模式开关
+  $("#btn-manage").addEventListener("click", () => {
+    manageMode = !manageMode;
+    selected.clear();
+    $("#btn-manage").classList.toggle("on", manageMode);
+    $("#btn-manage").textContent = manageMode ? "退出管理" : "管理模式";
+    render();
+  });
+  $("#ck-all").addEventListener("change", e => {
+    const list = filter === "all" ? all : all.filter(x => x.cat === filter);
+    selected = new Set();
+    if(e.target.checked) list.forEach(x => selected.add(x._file));
+    render();
+  });
+  $("#btn-del-sel").addEventListener("click", deleteSelected);
+  $("#btn-del-all").addEventListener("click", deleteAll);
 
   refresh();
   setInterval(refresh, 120000); // 每 2 分钟刷新
